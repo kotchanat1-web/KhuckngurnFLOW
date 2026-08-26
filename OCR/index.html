@@ -1,0 +1,3494 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Slip & Drug OCR Scanner — ระบบแปลงเอกสาร สลิป และใบเสร็จยา OPD ด้วย AI</title>
+  <meta name="description" content="เว็บแอปพลิเคชัน OCR สแกนและดึงข้อมูลสลิปโอนเงิน ใบเสร็จยา OPD คลินิก ใบเสร็จทั่วไป และเอกสารด้วย Google Gemini Vision API พร้อมคำนวณราคาซื้อต่อหน่วยย่อยและส่งออกข้อมูล">
+  
+  <!-- Google Fonts: Plus Jakarta Sans, Sarabun & Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       1. CSS Variables & Design System Tokens (Dark FinTech / Medical AI Theme)
+       ========================================================================== */
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #111827;
+      --bg-surface: #1a2234;
+      --bg-surface-elevated: #212c42;
+      --bg-surface-hover: #2a3752;
+      --bg-glass: rgba(26, 34, 52, 0.75);
+      --bg-glass-card: rgba(17, 24, 39, 0.85);
+
+      --border-color: #2e3a52;
+      --border-light: rgba(255, 255, 255, 0.1);
+      --border-focus: #6366f1;
+
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --text-highlight: #ffffff;
+
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-light: rgba(99, 102, 241, 0.15);
+      --primary-glow: rgba(99, 102, 241, 0.35);
+
+      --success: #10b981;
+      --success-light: rgba(16, 185, 129, 0.15);
+      --warning: #f59e0b;
+      --warning-light: rgba(245, 158, 11, 0.15);
+      --danger: #ef4444;
+      --danger-light: rgba(239, 68, 68, 0.15);
+      --cyan: #06b6d4;
+      --cyan-light: rgba(6, 182, 212, 0.15);
+      --emerald: #059669;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --radius-full: 9999px;
+
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+      --shadow-glow: 0 0 25px var(--primary-glow);
+
+      --font-sans: 'Plus Jakarta Sans', 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'Fira Code', Consolas, Monaco, monospace;
+
+      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* ==========================================================================
+       2. Global Reset & Base Styles
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.04) 0%, transparent 60%);
+      background-attachment: fixed;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: var(--radius-full);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* ==========================================================================
+       3. Header & Navigation
+       ========================================================================== */
+    header {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 0.85rem 1.5rem;
+    }
+
+    .header-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 4px 12px var(--primary-glow);
+      flex-shrink: 0;
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-highlight);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .badge-pill {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-full);
+      background: var(--primary-light);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-medical {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* ==========================================================================
+       4. Buttons & UI Elements
+       ========================================================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all var(--transition-normal);
+      outline: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #4338ca);
+      color: #ffffff;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #4f46e5, #3730a3);
+      box-shadow: 0 6px 20px var(--primary-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--text-muted);
+    }
+
+    .btn-outline-primary {
+      background: transparent;
+      color: #818cf8;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+    .btn-outline-primary:hover {
+      background: var(--primary-light);
+      border-color: var(--primary);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #ffffff;
+    }
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-danger-ghost {
+      background: transparent;
+      color: #f87171;
+      border: 1px solid transparent;
+    }
+    .btn-danger-ghost:hover {
+      background: var(--danger-light);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-sm {
+      padding: 0.35rem 0.65rem;
+      font-size: 0.75rem;
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-lg {
+      padding: 0.85rem 1.75rem;
+      font-size: 1rem;
+      border-radius: var(--radius-lg);
+    }
+
+    /* Icon Helper */
+    .icon {
+      width: 1.15rem;
+      height: 1.15rem;
+      flex-shrink: 0;
+      fill: currentColor;
+    }
+    .icon-sm {
+      width: 0.9rem;
+      height: 0.9rem;
+    }
+    .icon-lg {
+      width: 1.5rem;
+      height: 1.5rem;
+    }
+
+    /* ==========================================================================
+       5. Main Layout (2 Columns on Desktop, Stack on Mobile)
+       ========================================================================== */
+    main {
+      flex: 1;
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 1080px) {
+      .app-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Card Panels */
+    .card {
+      background: var(--bg-glass-card);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      transition: border-color var(--transition-normal);
+    }
+
+    .card:hover {
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-highlight);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-body {
+      padding: 1.25rem;
+    }
+
+    .panel-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ==========================================================================
+       6. Upload Zone Component
+       ========================================================================== */
+    .upload-dropzone {
+      border: 2px dashed var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      background: rgba(17, 24, 39, 0.5);
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      position: relative;
+    }
+
+    .upload-dropzone:hover, .upload-dropzone.drag-over {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .upload-dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon-wrapper {
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-full);
+      background: var(--primary-light);
+      color: #818cf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      transition: transform var(--transition-bounce);
+    }
+
+    .upload-dropzone:hover .upload-icon-wrapper {
+      transform: scale(1.1) rotate(5deg);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .upload-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-highlight);
+      margin-bottom: 0.25rem;
+    }
+
+    .upload-desc {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .upload-formats {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .format-tag {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    /* File Preview Card */
+    .preview-card {
+      display: none;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.85rem;
+      gap: 0.85rem;
+      align-items: center;
+      position: relative;
+    }
+
+    .preview-thumbnail {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-sm);
+      object-fit: cover;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .preview-thumbnail img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .preview-thumbnail .pdf-icon {
+      color: #f87171;
+    }
+
+    .preview-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .preview-filename {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-highlight);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .preview-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.2rem;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    /* ==========================================================================
+       7. Mode Selection Component (4 OCR Modes)
+       ========================================================================== */
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .mode-radio {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .mode-radio input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .mode-card {
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all var(--transition-normal);
+      height: 100%;
+    }
+
+    .mode-card .mode-icon {
+      color: var(--text-secondary);
+      transition: color var(--transition-fast);
+    }
+
+    .mode-card .mode-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .mode-radio input:checked + .mode-card {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      box-shadow: 0 0 14px var(--primary-glow);
+    }
+
+    .mode-radio input:checked + .mode-card .mode-icon {
+      color: #818cf8;
+      transform: scale(1.1);
+    }
+
+    .mode-radio input:checked + .mode-card.medical-mode {
+      border-color: var(--emerald);
+      background: var(--success-light);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+    }
+
+    .mode-radio input:checked + .mode-card.medical-mode .mode-icon {
+      color: #34d399;
+    }
+
+    .mode-radio input:checked + .mode-card .mode-title {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    /* Dynamic Headers Configuration Area for Receipt Mode */
+    .receipt-headers-config {
+      display: none;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.85rem;
+      margin-bottom: 1rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .receipt-headers-config label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.4rem;
+    }
+
+    .headers-input-wrapper {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .headers-input {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 0.45rem 0.75rem;
+      font-size: 0.8rem;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .headers-input:focus {
+      border-color: var(--primary);
+    }
+
+    /* ==========================================================================
+       8. Model Selector & Settings
+       ========================================================================== */
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .select-wrapper {
+      position: relative;
+    }
+
+    .form-select {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      padding: 0.65rem 2.25rem 0.65rem 1rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      appearance: none;
+      outline: none;
+      cursor: pointer;
+      transition: border-color var(--transition-fast);
+    }
+
+    .form-select:focus {
+      border-color: var(--primary);
+    }
+
+    .select-chevron {
+      position: absolute;
+      right: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      color: var(--text-muted);
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      margin-top: 0.4rem;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      accent-color: var(--primary);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    /* Scan Action Button Area */
+    .scan-action-area {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 1.25rem;
+    }
+
+    .btn-scan {
+      width: 100%;
+      padding: 0.9rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #3b82f6);
+      color: #ffffff;
+      border-radius: var(--radius-lg);
+      border: none;
+      box-shadow: 0 4px 18px rgba(99, 102, 241, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      transition: all var(--transition-bounce);
+    }
+
+    .btn-scan:hover:not(:disabled) {
+      background: linear-gradient(135deg, #4f46e5, #2563eb);
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .btn-scan:disabled {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* Live Progress Bar during Scan */
+    .scan-progress {
+      display: none;
+      margin-top: 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .progress-status {
+      color: #818cf8;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .progress-model {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-surface);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--cyan), var(--primary));
+      background-size: 200% 100%;
+      border-radius: var(--radius-full);
+      animation: progressPulse 1.5s linear infinite;
+    }
+
+    @keyframes progressPulse {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Quick Demo Bar */
+    .demo-bar {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .demo-bar-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .demo-btn-group {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    /* ==========================================================================
+       9. Result View Component (Right Column)
+       ========================================================================== */
+    .result-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 580px;
+    }
+
+    .result-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .result-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.65rem;
+      border-radius: var(--radius-full);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    .result-status-badge.success {
+      background: var(--success-light);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .result-status-badge.failed {
+      background: var(--danger-light);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .result-status-badge.processing {
+      background: var(--primary-light);
+      color: #818cf8;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    /* View Switcher Tabs */
+    .view-tabs {
+      display: flex;
+      background: var(--bg-primary);
+      padding: 0.25rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      gap: 0.2rem;
+    }
+
+    .view-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: inherit;
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .view-tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .view-tab-btn.active {
+      background: var(--bg-surface-elevated);
+      color: var(--text-highlight);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Result Content Body */
+    .result-body {
+      flex: 1;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      min-height: 420px;
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 3rem 1.5rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+
+    .empty-state p {
+      font-size: 0.85rem;
+      max-width: 340px;
+    }
+
+    /* Table View Styles */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    .data-table th {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Drug Table Special Styles */
+    .data-table td.generic-col {
+      font-weight: 700;
+      color: #818cf8;
+    }
+
+    .data-table td.price-col {
+      font-weight: 700;
+      color: #34d399;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+    }
+
+    .table-sub-badge {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      display: block;
+      margin-top: 0.15rem;
+    }
+
+    /* Inline editable cells */
+    .editable-cell {
+      padding: 0.35rem 0.5rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      outline: none;
+      transition: all var(--transition-fast);
+      min-height: 1.5rem;
+    }
+
+    .editable-cell:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .editable-cell:focus {
+      background: var(--bg-primary);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-light);
+    }
+
+    .table-field-key {
+      font-weight: 600;
+      color: #818cf8;
+      width: 35%;
+      min-width: 140px;
+    }
+
+    .table-field-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: block;
+    }
+
+    /* Table Toolbar */
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.75rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    /* JSON Viewer */
+    .json-container {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      overflow-x: auto;
+      max-height: 480px;
+      line-height: 1.5;
+    }
+
+    .json-container pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Syntax Highlighting for JSON */
+    .json-key { color: #38bdf8; }
+    .json-string { color: #34d399; }
+    .json-number { color: #fbbf24; }
+    .json-boolean { color: #f472b6; }
+    .json-null { color: #9ca3af; font-style: italic; }
+
+    /* Plain Text Viewer */
+    .text-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .text-editor {
+      width: 100%;
+      min-height: 380px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+
+    .text-editor:focus {
+      border-color: var(--primary);
+    }
+
+    /* Action Bar */
+    .result-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .action-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* ==========================================================================
+       10. Modal Dialogs (Settings, Webhook Sender)
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-normal);
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      max-width: 520px;
+      width: 100%;
+      box-shadow: var(--shadow-lg), 0 0 35px rgba(0, 0, 0, 0.7);
+      transform: scale(0.95) translateY(10px);
+      transition: transform var(--transition-bounce);
+      overflow: hidden;
+    }
+
+    .modal-backdrop.open .modal {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-highlight);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.35rem;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color var(--transition-fast);
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .modal-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    .input-with-icon {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-with-icon input {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      padding: 0.65rem 2.5rem 0.65rem 1rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+
+    .input-with-icon input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-light);
+    }
+
+    .input-icon-btn {
+      position: absolute;
+      right: 0.6rem;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .input-icon-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .alert-box {
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      line-height: 1.5;
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+    }
+
+    .alert-warning {
+      background: var(--warning-light);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fde68a;
+    }
+
+    .alert-info {
+      background: var(--cyan-light);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #a5f3fc;
+    }
+
+    /* ==========================================================================
+       11. Toast Notifications
+       ========================================================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.75rem 1.15rem;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      pointer-events: auto;
+      animation: slideInUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: all var(--transition-normal);
+      max-width: 380px;
+    }
+
+    .toast.toast-success {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: #064e3b;
+      color: #a7f3d0;
+    }
+
+    .toast.toast-error {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: #7f1d1d;
+      color: #fecaca;
+    }
+
+    .toast.toast-info {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: #312e81;
+      color: #c7d2fe;
+    }
+
+    .toast.toast-warning {
+      border-color: rgba(245, 158, 11, 0.5);
+      background: #78350f;
+      color: #fde68a;
+    }
+
+    /* Animations */
+    @keyframes slideInUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive Queries */
+    @media (max-width: 640px) {
+      header {
+        padding: 0.75rem 1rem;
+      }
+      main {
+        padding: 1rem 0.75rem;
+      }
+      .brand-text p {
+        display: none;
+      }
+      .mode-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .result-footer {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .action-group {
+        justify-content: stretch;
+      }
+      .action-group .btn {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========================================================================
+       Header Section
+       ======================================================================== -->
+  <header>
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <!-- OCR Scan & Medical Sparkle Icon -->
+          <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7V4h3"></path>
+            <path d="M20 7V4h-3"></path>
+            <path d="M4 17v3h3"></path>
+            <path d="M20 17v3h-3"></path>
+            <line x1="4" y1="12" x2="20" y2="12"></line>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>
+            AI Slip & Drug OCR Scanner
+            <span class="badge-pill badge-medical">OPD & Vision AI</span>
+          </h1>
+          <p>แปลงสลิปโอนเงิน ใบเสร็จยา OPD คลินิก และเอกสารด้วย Gemini AI พร้อมหาราคาต่อหน่วยย่อยและส่งออกทันที</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Quick Demo Dropdown / Button -->
+        <button id="quickDemoBtn" class="btn btn-secondary btn-sm" title="โหลดข้อมูลตัวอย่างเพื่อทดสอบ UI ทันที">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span>ทดลอง Demo</span>
+        </button>
+
+        <!-- Settings Button (API Key Modal) -->
+        <button id="settingsBtn" class="btn btn-outline-primary btn-sm" title="ตั้งค่า Gemini API Key">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span id="apiKeyBadgeStatus">API Key</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       Main Content Grid
+       ======================================================================== -->
+  <main>
+    <div class="app-grid">
+
+      <!-- LEFT COLUMN: Input, Settings, Mode & Trigger -->
+      <div class="panel-stack">
+
+        <!-- 1. Upload & File Area -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              เอกสารต้นฉบับ
+            </h2>
+            <span class="format-tag">JPG / PNG / WEBP / PDF</span>
+          </div>
+          <div class="card-body">
+            <!-- Drag & Drop Zone -->
+            <div id="uploadDropzone" class="upload-dropzone">
+              <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,application/pdf">
+              <div class="upload-icon-wrapper">
+                <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="12" y1="18" x2="12" y2="12"></line>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </div>
+              <div class="upload-title">ลากไฟล์สลิปหรือเอกสารมาวางที่นี่</div>
+              <div class="upload-desc">หรือคลิกเพื่อเลือกไฟล์จากอุปกรณ์ของคุณ</div>
+              <div class="upload-formats">
+                <span class="format-tag">Image Max 20MB</span>
+                <span class="format-tag">PDF Max 20MB</span>
+              </div>
+            </div>
+
+            <!-- Active File Preview Card -->
+            <div id="previewCard" class="preview-card">
+              <div id="previewThumbnail" class="preview-thumbnail">
+                <!-- Image or PDF icon injected here -->
+              </div>
+              <div class="preview-info">
+                <div id="previewFilename" class="preview-filename">slip-transfer-01.png</div>
+                <div class="preview-meta">
+                  <span id="previewFilesize">420 KB</span>
+                  <span>•</span>
+                  <span id="previewFiletype">PNG</span>
+                </div>
+              </div>
+              <div class="preview-actions">
+                <button id="removeFileBtn" class="btn btn-danger-ghost btn-sm" title="ลบไฟล์">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. OCR Mode & Model Configuration -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              โหมดการประมวลผล OCR
+            </h2>
+          </div>
+          <div class="card-body">
+            
+            <!-- Mode Radio Grid (4 Modes) -->
+            <div class="section-label">เลือกประเภทเอกสาร</div>
+            <div class="mode-grid">
+              <!-- Mode 1: Slip Transfer -->
+              <label class="mode-radio">
+                <input type="radio" name="ocrMode" value="transfer-slip" checked>
+                <div class="mode-card">
+                  <div class="mode-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                      <line x1="1" y1="10" x2="23" y2="10"></line>
+                    </svg>
+                  </div>
+                  <div class="mode-title">สลิปโอนเงิน</div>
+                </div>
+              </label>
+
+              <!-- Mode 2: OPD Drug / Pharmacy Receipt (NEW) -->
+              <label class="mode-radio">
+                <input type="radio" name="ocrMode" value="opd-drug">
+                <div class="mode-card medical-mode">
+                  <div class="mode-icon">
+                    <!-- Pill / Medical Icon -->
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"></path>
+                      <path d="m8.5 8.5 7 7"></path>
+                    </svg>
+                  </div>
+                  <div class="mode-title">ใบเสร็จยา OPD</div>
+                </div>
+              </label>
+
+              <!-- Mode 3: Slip Receipt / General Invoice -->
+              <label class="mode-radio">
+                <input type="radio" name="ocrMode" value="receipt">
+                <div class="mode-card">
+                  <div class="mode-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path>
+                      <line x1="8" y1="6" x2="16" y2="6"></line>
+                      <line x1="8" y1="10" x2="16" y2="10"></line>
+                      <line x1="8" y1="14" x2="12" y2="14"></line>
+                    </svg>
+                  </div>
+                  <div class="mode-title">ใบเสร็จ / รายการ</div>
+                </div>
+              </label>
+
+              <!-- Mode 4: Plain Text -->
+              <label class="mode-radio">
+                <input type="radio" name="ocrMode" value="plain-text">
+                <div class="mode-card">
+                  <div class="mode-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="21" y1="6" x2="3" y2="6"></line>
+                      <line x1="15" y1="12" x2="3" y2="12"></line>
+                      <line x1="17" y1="18" x2="3" y2="18"></line>
+                    </svg>
+                  </div>
+                  <div class="mode-title">ข้อความทั่วไป</div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Dynamic Headers for Receipt Mode -->
+            <div id="receiptHeadersConfig" class="receipt-headers-config">
+              <label for="receiptHeadersInput">หัวตารางที่ต้องการสกัด (คั่นด้วยเครื่องหมายจุลภาค , )</label>
+              <div class="headers-input-wrapper">
+                <input type="text" id="receiptHeadersInput" class="headers-input" value="วันที่, รายการ, จำนวน, ราคา/หน่วย, จำนวนเงิน, หมายเหตุ">
+                <button type="button" id="resetHeadersBtn" class="btn btn-secondary btn-sm" title="คืนค่าเริ่มต้น">รีเซ็ต</button>
+              </div>
+            </div>
+
+            <!-- Model Selection -->
+            <div class="form-group">
+              <div class="section-label">โมเดล AI (Gemini Vision)</div>
+              <div class="select-wrapper">
+                <select id="modelSelect" class="form-select">
+                  <option value="gemini-3.6-flash" selected>gemini-3.6-flash (เร็วและแม่นยำสูง - แนะนำ)</option>
+                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (ประหยัด Resource)</option>
+                  <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
+                  <option value="gemma-4-26b-a4b-it">gemma-4-26b-a4b-it</option>
+                  <option value="gemma-4-31b-it">gemma-4-31b-it</option>
+                </select>
+                <div class="select-chevron">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Failover Checkbox -->
+              <label class="checkbox-label">
+                <input type="checkbox" id="failoverCheckbox" checked>
+                <span>สลับใช้โมเดลสำรองอัตโนมัติหากโมเดลแรกทำงานล้มเหลว (Try another model if fail)</span>
+              </label>
+            </div>
+
+            <!-- Action Button -->
+            <div class="scan-action-area">
+              <button type="button" id="scanBtn" class="btn-scan">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+                <span id="scanBtnText">เริ่มสแกนและดึงข้อมูล</span>
+              </button>
+
+              <!-- Progress Status Area -->
+              <div id="scanProgress" class="scan-progress">
+                <div class="progress-header">
+                  <div class="progress-status">
+                    <svg class="icon icon-sm" style="animation: spin 1s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="10"></circle>
+                    </svg>
+                    <span id="progressStatusText">กำลังวิเคราะห์เอกสาร...</span>
+                  </div>
+                  <div id="progressModelText" class="progress-model">gemini-3.6-flash</div>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Demo Footer -->
+            <div class="demo-bar">
+              <span class="demo-bar-text">ทดสอบชุดข้อมูลจำลอง:</span>
+              <div class="demo-btn-group">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.loadDemo('opd-drug')" style="border-color: rgba(16, 185, 129, 0.4); color: #34d399;" title="ทดสอบตารางยา OPD 6 คอลัมน์">💊 ยา OPD</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.loadDemo('transfer-slip')">สลิปโอน</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.loadDemo('receipt')">ใบเสร็จ</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.loadDemo('plain-text')">ข้อความ</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Output & Results Display -->
+      <section class="card result-container">
+        <!-- Result Header -->
+        <div class="card-header">
+          <div class="result-header-left">
+            <h2 class="card-title">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              ผลลัพธ์การสกัดข้อมูล
+            </h2>
+            <div id="resultStatusBadge" class="result-status-badge">
+              <span>ยังไม่มีข้อมูล</span>
+            </div>
+          </div>
+
+          <!-- View Switcher -->
+          <div id="viewTabs" class="view-tabs">
+            <button type="button" class="view-tab-btn active" data-view="table" id="viewTableBtn">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+              ตาราง (Table)
+            </button>
+            <button type="button" class="view-tab-btn" data-view="json" id="viewJsonBtn">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              JSON
+            </button>
+            <button type="button" class="view-tab-btn" data-view="text" id="viewTextBtn">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="21" y1="10" x2="3" y2="10"></line>
+                <line x1="21" y1="6" x2="3" y2="6"></line>
+                <line x1="21" y1="14" x2="3" y2="14"></line>
+                <line x1="21" y1="18" x2="3" y2="18"></line>
+              </svg>
+              ข้อความ (Text)
+            </button>
+          </div>
+        </div>
+
+        <!-- Result Content Body -->
+        <div id="resultBody" class="result-body">
+
+          <!-- Empty State Default -->
+          <div id="emptyState" class="empty-state">
+            <div class="empty-state-icon">
+              <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+            </div>
+            <h3>พร้อมสำหรับการสแกน</h3>
+            <p>อัปโหลดสลิป, ใบเสร็จยา OPD, หรือเอกสาร แล้วกดปุ่ม "เริ่มสแกนและดึงข้อมูล" หรือคลิกปุ่มทดลอง Demo เพื่อดูตัวอย่างผลลัพธ์</p>
+          </div>
+
+          <!-- Table View Container (Editable) -->
+          <div id="tableViewWrapper" style="display: none; width: 100%;">
+            <div class="table-container">
+              <table id="resultDataTable" class="data-table">
+                <!-- Dynamically generated table content -->
+              </table>
+            </div>
+            <div id="tableToolbar" class="table-toolbar" style="display: none;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="app.addOpdDrugRow()">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>เพิ่มรายการยา (+ Add Drug Row)</span>
+              </button>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">* สามารถคลิกที่ข้อความในตารางเพื่อแก้ไขค่าได้โดยตรง</span>
+            </div>
+          </div>
+
+          <!-- JSON View Container -->
+          <div id="jsonViewWrapper" style="display: none; width: 100%;">
+            <div class="json-container">
+              <pre><code id="jsonCodeBlock"></code></pre>
+            </div>
+          </div>
+
+          <!-- Text View Container -->
+          <div id="textViewWrapper" style="display: none; width: 100%; height: 100%;">
+            <div class="text-container">
+              <textarea id="textEditor" class="text-editor" spellcheck="false" placeholder="ข้อความที่ AI อ่านได้..."></textarea>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Result Action Bar -->
+        <div class="result-footer">
+          <div class="action-group">
+            <button type="button" id="copyResultBtn" class="btn btn-secondary btn-sm" title="คัดลอกข้อมูลตามมุมมองปัจจุบัน">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>คัดลอก (Copy)</span>
+            </button>
+            <button type="button" id="copyTsvBtn" class="btn btn-secondary btn-sm" title="คัดลอกตารางไปวางใน Excel / Google Sheets">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3"></path>
+                <path d="M8 3a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2H8V3z"></path>
+              </svg>
+              <span>Copy for Excel</span>
+            </button>
+          </div>
+
+          <div class="action-group">
+            <button type="button" id="exportCsvBtn" class="btn btn-secondary btn-sm" title="ดาวน์โหลดเป็นไฟล์ CSV">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Export CSV</span>
+            </button>
+            <button type="button" id="exportJsonBtn" class="btn btn-secondary btn-sm" title="ดาวน์โหลดเป็นไฟล์ JSON">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Export JSON</span>
+            </button>
+            <button type="button" id="sendDataBtn" class="btn btn-outline-primary btn-sm" title="ส่งข้อมูลไปยัง Webhook / API Endpoint">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              <span>Send Data</span>
+            </button>
+            <button type="button" id="clearResultBtn" class="btn btn-danger-ghost btn-sm" title="ล้างผลลัพธ์">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ========================================================================
+       Settings Modal (Gemini API Key & Preferences)
+       ======================================================================== -->
+  <div id="settingsModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          ตั้งค่า Gemini API Key
+        </h3>
+        <button type="button" class="modal-close" onclick="app.closeSettingsModal()">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="section-label" for="apiKeyInput">Google Gemini API Key</label>
+          <div class="input-with-icon">
+            <input type="password" id="apiKeyInput" placeholder="AIzaSy..." autocomplete="off">
+            <button type="button" id="toggleApiKeyVisibility" class="input-icon-btn" title="แสดง/ซ่อน Key">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="saveApiKeyCheckbox" checked>
+            <span>บันทึก API Key ใน Local Storage (จดจำบนเบราว์เซอร์นี้)</span>
+          </label>
+        </div>
+
+        <div class="alert-box alert-warning">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <div>
+            <strong>ความปลอดภัย:</strong> API Key และภาพเอกสารจะถูกส่งตรงจากเบราว์เซอร์ของคุณไปยัง Google Gemini API โดยไม่มี Server ตัวกลาง เหมาะสำหรับการใช้งานส่วนบุคคลหรือ Internal Tool
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="clearApiKeyBtn" class="btn btn-danger-ghost btn-sm">ล้างค่า Key</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="app.closeSettingsModal()">ยกเลิก</button>
+        <button type="button" id="saveApiKeyBtn" class="btn btn-primary btn-sm">บันทึกการตั้งค่า</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       Send Data / Webhook Modal
+       ======================================================================== -->
+  <div id="webhookModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          ส่งข้อมูลออก (Webhook Adapter)
+        </h3>
+        <button type="button" class="modal-close" onclick="app.closeWebhookModal()">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="section-label" for="webhookUrlInput">Webhook Endpoint URL (POST JSON)</label>
+          <input type="url" id="webhookUrlInput" class="headers-input" style="width:100%;" placeholder="https://hook.make.com/... หรือ https://api.example.com/slips">
+        </div>
+        <div class="alert-box alert-info">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <div>
+            ระบบจะส่ง HTTP POST พร้อม Header <code>Content-Type: application/json</code> บรรจุข้อมูลที่สกัดได้ทั้งหมดไปยัง URL ปลายทาง
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="app.closeWebhookModal()">ปิด</button>
+        <button type="button" id="submitWebhookBtn" class="btn btn-primary btn-sm">ส่งข้อมูลทันที</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ========================================================================
+       Modular Vanilla JavaScript Architecture
+       ======================================================================== -->
+  <script>
+    /* ==========================================================================
+       1. App State
+       ========================================================================== */
+    const state = {
+      file: null,              // File object
+      fileBase64: null,        // Base64 data string (without prefix)
+      fileDataUrl: null,       // Complete Data URL for preview
+      fileType: null,          // 'image/jpeg', 'image/png', 'application/pdf', etc.
+      fileName: '',
+      fileSize: 0,
+      
+      mode: 'transfer-slip',   // 'transfer-slip' | 'opd-drug' | 'receipt' | 'plain-text'
+      receiptHeaders: ['วันที่', 'รายการ', 'จำนวน', 'ราคา/หน่วย', 'จำนวนเงิน', 'หมายเหตุ'],
+      
+      model: 'gemini-3.6-flash',
+      tryAnotherModel: true,
+      apiKey: '',
+      
+      result: null,            // Extracted JSON or string data
+      resultType: null,        // 'transfer-slip' | 'opd-drug' | 'receipt' | 'plain-text'
+      usedModel: null,         // Model that successfully processed the file
+      elapsedMs: 0,
+      
+      activeView: 'table',     // 'table' | 'json' | 'text'
+      isProcessing: false,
+      abortController: null
+    };
+
+    // Allowed models in priority fallback order
+    const MODEL_FALLBACK_LIST = [
+      'gemini-3.6-flash',
+      'gemini-3.1-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemma-4-26b-a4b-it',
+      'gemma-4-31b-it'
+    ];
+
+    /* ==========================================================================
+       2. Local Storage Manager
+       ========================================================================== */
+    const storage = {
+      KEY_API: 'ocr_gemini_api_key',
+      KEY_PREFS: 'ocr_user_prefs',
+
+      getApiKey() {
+        return localStorage.getItem(this.KEY_API) || '';
+      },
+      setApiKey(key) {
+        if (key) {
+          localStorage.setItem(this.KEY_API, key);
+        } else {
+          localStorage.removeItem(this.KEY_API);
+        }
+      },
+      clearApiKey() {
+        localStorage.removeItem(this.KEY_API);
+      },
+      getPrefs() {
+        try {
+          return JSON.parse(localStorage.getItem(this.KEY_PREFS)) || {};
+        } catch {
+          return {};
+        }
+      },
+      savePrefs(prefs) {
+        localStorage.setItem(this.KEY_PREFS, JSON.stringify(prefs));
+      }
+    };
+
+    /* ==========================================================================
+       3. Toast Notification Helper
+       ========================================================================== */
+    function showToast(message, type = 'info', duration = 3500) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      
+      let iconSvg = '';
+      if (type === 'success') {
+        iconSvg = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      } else if (type === 'error') {
+        iconSvg = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+      } else if (type === 'warning') {
+        iconSvg = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+      } else {
+        iconSvg = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+      }
+
+      toast.innerHTML = `${iconSvg}<span>${message}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(20px)';
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+
+    /* ==========================================================================
+       4. File Handling & Preview
+       ========================================================================== */
+    function formatBytes(bytes, decimals = 1) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    function handleFileSelected(file) {
+      if (!file) return;
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP) หรือเอกสาร PDF เท่านั้น', 'error');
+        return;
+      }
+
+      // Max 20MB
+      if (file.size > 20 * 1024 * 1024) {
+        showToast('ขนาดไฟล์เกินกำหนด (ไม่เกิน 20MB)', 'error');
+        return;
+      }
+
+      state.file = file;
+      state.fileName = file.name;
+      state.fileSize = file.size;
+      state.fileType = file.type;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const fullDataUrl = e.target.result;
+        state.fileDataUrl = fullDataUrl;
+        // Extract base64 without metadata header
+        state.fileBase64 = fullDataUrl.split(',')[1];
+        renderFilePreview();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderFilePreview() {
+      const dropzone = document.getElementById('uploadDropzone');
+      const previewCard = document.getElementById('previewCard');
+      const thumb = document.getElementById('previewThumbnail');
+      const nameEl = document.getElementById('previewFilename');
+      const sizeEl = document.getElementById('previewFilesize');
+      const typeEl = document.getElementById('previewFiletype');
+
+      if (!state.file) {
+        dropzone.style.display = 'block';
+        previewCard.style.display = 'none';
+        return;
+      }
+
+      dropzone.style.display = 'none';
+      previewCard.style.display = 'flex';
+
+      nameEl.textContent = state.fileName;
+      sizeEl.textContent = formatBytes(state.fileSize);
+      typeEl.textContent = state.fileType.replace('image/', '').replace('application/', '').toUpperCase();
+
+      if (state.fileType === 'application/pdf') {
+        thumb.innerHTML = `
+          <svg class="icon icon-lg pdf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <text x="7" y="18" font-size="6" font-weight="bold" fill="currentColor">PDF</text>
+          </svg>
+        `;
+      } else {
+        thumb.innerHTML = `<img src="${state.fileDataUrl}" alt="${state.fileName}">`;
+      }
+    }
+
+    function removeFile() {
+      state.file = null;
+      state.fileBase64 = null;
+      state.fileDataUrl = null;
+      state.fileName = '';
+      state.fileSize = 0;
+      state.fileType = null;
+      document.getElementById('fileInput').value = '';
+      renderFilePreview();
+    }
+
+    /* ==========================================================================
+       5. Comprehensive Thai Pharmaceutical Master Database & Auto-Enricher
+       ========================================================================== */
+    const THAI_DRUG_DATABASE = {
+      // Antibiotics & Anti-infectives
+      'amk': { generic: 'Amoxicillin', alt_generic: 'Co-amoxiclav (Amoxy/Clav)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'amk 1000': { generic: 'Amoxicillin', alt_generic: 'Augmentin (Amoxy/Clav)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'amk forte': { generic: 'Augmentin (Amoxy/Clav)', form: 'Dry Syrup', defaultUnit: 'ขวด' },
+      'augmentin': { generic: 'Augmentin (Amoxy/Clav)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cavumox': { generic: 'Augmentin (Amoxy/Clav)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'curam': { generic: 'Augmentin (Amoxy/Clav)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'fleming': { generic: 'Augmentin (Amoxy/Clav)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'hiconcil': { generic: 'Amoxicillin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'ibiamox': { generic: 'Amoxicillin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'moxilin': { generic: 'Amoxicillin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'servamox': { generic: 'Amoxicillin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'amoxy': { generic: 'Amoxicillin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'amoxicillin': { generic: 'Amoxicillin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'klacid': { generic: 'Clarithromycin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'klaacid': { generic: 'Clarithromycin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'crixan': { generic: 'Clarithromycin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'clarithro': { generic: 'Clarithromycin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'zithromax': { generic: 'Azithromycin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'azithro': { generic: 'Azithromycin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'ciprobay': { generic: 'Ciprofloxacin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cifran': { generic: 'Ciprofloxacin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cipro': { generic: 'Ciprofloxacin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cravit': { generic: 'Levofloxacin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'levo': { generic: 'Levofloxacin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'levoflox': { generic: 'Levofloxacin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'bactrim': { generic: 'Co-trimoxazole (Sulfamethoxazole + Trimethoprim)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cotrim': { generic: 'Co-trimoxazole (Sulfamethoxazole + Trimethoprim)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'rocephin': { generic: 'Ceftriaxone', form: 'Injection', defaultUnit: 'ไวอัล' },
+      'ceftri': { generic: 'Ceftriaxone', form: 'Injection', defaultUnit: 'ไวอัล' },
+      'cefix': { generic: 'Cefixime', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'cepan': { generic: 'Cefalexin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'keflex': { generic: 'Cefalexin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'dalacin': { generic: 'Clindamycin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'clinda': { generic: 'Clindamycin', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'vibramycin': { generic: 'Doxycycline', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'doxy': { generic: 'Doxycycline', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'zovirax': { generic: 'Acyclovir', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'acyclo': { generic: 'Acyclovir', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'valtrex': { generic: 'Valacyclovir', form: 'Tablet', defaultUnit: 'เม็ด' },
+
+      // Pain Relievers, NSAIDs & Muscle Relaxants
+      'sara': { generic: 'Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'sara 500': { generic: 'Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'tylenol': { generic: 'Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'tylenol syrup': { generic: 'Paracetamol Syrup', form: 'Syrup', defaultUnit: 'ขวด' },
+      'panadol': { generic: 'Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'paracap': { generic: 'Paracetamol', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'cemol': { generic: 'Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'calpol': { generic: 'Paracetamol Syrup', form: 'Syrup', defaultUnit: 'ขวด' },
+      'tempra': { generic: 'Paracetamol Syrup', form: 'Syrup', defaultUnit: 'ขวด' },
+      'ponstan': { generic: 'Mefenamic Acid', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'postan': { generic: 'Mefenamic Acid', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'nurofen': { generic: 'Ibuprofen', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'brufen': { generic: 'Ibuprofen', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'ibu': { generic: 'Ibuprofen', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'voltaren': { generic: 'Diclofenac Sodium', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'difelene': { generic: 'Diclofenac Sodium', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'diclo': { generic: 'Diclofenac Sodium', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'celebrex': { generic: 'Celecoxib', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'cobix': { generic: 'Celecoxib', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'arcoxia': { generic: 'Etoricoxib', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'torcoxia': { generic: 'Etoricoxib', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'mobic': { generic: 'Meloxicam', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'meloxicam': { generic: 'Meloxicam', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'feldene': { generic: 'Piroxicam', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'ultracet': { generic: 'Tramadol + Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'tramacet': { generic: 'Tramadol + Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'tramal': { generic: 'Tramadol', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'tramadol': { generic: 'Tramadol', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'norgesic': { generic: 'Orphenadrine + Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'muscol': { generic: 'Orphenadrine + Paracetamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'myonal': { generic: 'Eperisone HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'episone': { generic: 'Eperisone HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'sirdalud': { generic: 'Tizanidine', form: 'Tablet', defaultUnit: 'เม็ด' },
+
+      // Antihistamines & Allergy & Respiratory
+      'zyrtec': { generic: 'Cetirizine HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cetriz': { generic: 'Cetirizine HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'aller-c': { generic: 'Cetirizine HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cetero': { generic: 'Cetirizine HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'telfast': { generic: 'Fexofenadine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'fexodine': { generic: 'Fexofenadine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'xyzal': { generic: 'Levocetirizine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'clarityne': { generic: 'Loratadine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'allergin': { generic: 'Loratadine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'aerius': { generic: 'Desloratadine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'singulair': { generic: 'Montelukast', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'montek': { generic: 'Montelukast', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'ventolin': { generic: 'Salbutamol', form: 'Syrup / Inhaler', defaultUnit: 'ขวด' },
+      'asthalin': { generic: 'Salbutamol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'bisolvon': { generic: 'Bromhexine HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'mucosolvan': { generic: 'Ambroxol HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'ambril': { generic: 'Ambroxol HCl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'fluimucil': { generic: 'Acetylcysteine', form: 'Effervescent Tablet', defaultUnit: 'เม็ด' },
+      'nac long': { generic: 'Acetylcysteine', form: 'Effervescent Tablet', defaultUnit: 'เม็ด' },
+      'flemex': { generic: 'Carbocisteine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'avantis': { generic: 'Chlorpheniramine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cpm': { generic: 'Chlorpheniramine maleate (CPM)', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'histasol': { generic: 'Chlorpheniramine maleate (CPM)', form: 'Tablet', defaultUnit: 'เม็ด' },
+
+      // Gastrointestinal
+      'losec': { generic: 'Omeprazole', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'miracid': { generic: 'Omeprazole', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'ocid': { generic: 'Omeprazole', form: 'Capsule', defaultUnit: 'แคปซูล' },
+      'nexium': { generic: 'Esomeprazole', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'controloc': { generic: 'Pantoprazole', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'pariet': { generic: 'Rabeprazole', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'motilium': { generic: 'Domperidone', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'miridon': { generic: 'Domperidone', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'moti': { generic: 'Domperidone', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'plasil': { generic: 'Metoclopramide', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'buscopan': { generic: 'Hyoscine butylbromide', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'air-x': { generic: 'Simethicone', form: 'Chewable Tablet', defaultUnit: 'เม็ด' },
+      'disflatyl': { generic: 'Simethicone', form: 'Chewable Tablet', defaultUnit: 'เม็ด' },
+      'gaviscon': { generic: 'Sodium alginate + Antacid', form: 'Sachet / Suspension', defaultUnit: 'ซอง' },
+      'antacil': { generic: 'Aluminium + Magnesium + Simethicone', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'kremil-s': { generic: 'Aluminium + Magnesium + Dicyclomine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'senokot': { generic: 'Senna extract', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'dulcolax': { generic: 'Bisacodyl', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'smecta': { generic: 'Dioctahedral smectite', form: 'Sachet', defaultUnit: 'ซอง' },
+      'royal-d': { generic: 'Oral Rehydration Salts (ORS)', form: 'Sachet', defaultUnit: 'ซอง' },
+      'oreda': { generic: 'Oral Rehydration Salts (ORS)', form: 'Sachet', defaultUnit: 'ซอง' },
+
+      // Cardiovascular, Endocrine & Chronic
+      'glucophage': { generic: 'Metformin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'siamformet': { generic: 'Metformin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'diamicron': { generic: 'Gliclazide', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'amaryl': { generic: 'Glimepiride', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'januvia': { generic: 'Sitagliptin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'forxiga': { generic: 'Dapagliflozin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'jardiance': { generic: 'Empagliflozin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'norvasc': { generic: 'Amlodipine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'amcard': { generic: 'Amlodipine', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'cozaar': { generic: 'Losartan', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'diovan': { generic: 'Valsartan', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'micardis': { generic: 'Telmisartan', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'concor': { generic: 'Bisoprolol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'betaloc': { generic: 'Metoprolol', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'lipitor': { generic: 'Atorvastatin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'crestor': { generic: 'Rosuvastatin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'zocor': { generic: 'Simvastatin', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'plavix': { generic: 'Clopidogrel', form: 'Tablet', defaultUnit: 'เม็ด' },
+
+      // Topical, Steroids & Others
+      'fucidin': { generic: 'Fusidic Acid', form: 'Cream / Ointment', defaultUnit: 'หลอด' },
+      'garamycin': { generic: 'Gentamicin', form: 'Cream / Eye Drops', defaultUnit: 'หลอด' },
+      'canesten': { generic: 'Clotrimazole', form: 'Cream', defaultUnit: 'หลอด' },
+      'daktarin': { generic: 'Miconazole', form: 'Oral Gel / Cream', defaultUnit: 'หลอด' },
+      'nizoral': { generic: 'Ketoconazole', form: 'Shampoo / Cream', defaultUnit: 'ขวด' },
+      'prednisolone': { generic: 'Prednisolone', form: 'Tablet', defaultUnit: 'เม็ด' },
+      'dexa': { generic: 'Dexamethasone', form: 'Tablet / Injection', defaultUnit: 'เม็ด' },
+      'medrol': { generic: 'Methylprednisolone', form: 'Tablet', defaultUnit: 'เม็ด' }
+    };
+
+    /**
+     * Enhanced Post-Processor: Cross-references and corrects Trade Name -> Generic Name
+     * using the clinical knowledge base for 100% precision.
+     */
+    function enrichOpdDrugItem(item) {
+      if (!item || typeof item !== 'object') return item;
+
+      let tradeKey = (item.trade_name || '').toLowerCase().trim();
+      let genericKey = (item.generic_name || '').toLowerCase().trim();
+      
+      // Clean potential prefixes / suffixes (e.g. "Tab. Amk 1000mg" -> "amk")
+      const cleanTrade = tradeKey
+        .replace(/^(tab|cap|syr|inj|cream|oint|sachet|dr|drops?|solution)[\.\s]+/i, '')
+        .replace(/\b(\d+mg|\d+g|\d+ml|\d+%)\b/gi, '')
+        .trim();
+
+      // Check dictionary matches
+      let match = THAI_DRUG_DATABASE[cleanTrade] || THAI_DRUG_DATABASE[tradeKey];
+      
+      if (!match) {
+        // Partial key matching (e.g. "Amk 1000" matches "amk", "Sara 500" matches "sara")
+        const words = cleanTrade.split(/\s+/);
+        if (words.length > 0 && THAI_DRUG_DATABASE[words[0]]) {
+          match = THAI_DRUG_DATABASE[words[0]];
+        }
+      }
+
+      if (match) {
+        // If Generic name is vague, missing, or identical to trade name, replace with standard Generic
+        if (!item.generic_name || genericKey === tradeKey || genericKey.includes('unknown') || genericKey === cleanTrade) {
+          item.generic_name = match.generic;
+        }
+        // If Dosage Form is missing or generic, use standard
+        if (!item.dosage_form || item.dosage_form.toLowerCase() === 'drug' || item.dosage_form.toLowerCase() === 'medicine') {
+          item.dosage_form = match.form;
+        }
+        // If Unit is missing, set default unit
+        if (!item.unit) {
+          item.unit = match.defaultUnit;
+        }
+      }
+
+      // Format clean Strength string (e.g. ensure space before mg if needed)
+      if (item.strength) {
+        item.strength = String(item.strength).replace(/(\d+)(mg|mcg|g|ml|%)/gi, '$1 $2').trim();
+      }
+
+      // Ensure unit price is rounded float
+      if (typeof item.unit_price === 'number') {
+        item.unit_price = Math.round(item.unit_price * 100) / 100;
+      }
+
+      return item;
+    }
+
+    /* ==========================================================================
+       6. Prompt Builder (Specialized per OCR Mode with Medical Intelligence)
+       ========================================================================== */
+    function buildPrompt(mode, receiptHeaders = []) {
+      const systemInstruction = `You are an elite Clinical Pharmacist and Medical Document OCR Extraction Engine specializing in Thai and International Pharmaceutical Invoices, OPD Prescription Slips, and Clinic Drug Receipts.
+Analyze the attached receipt/invoice with the utmost pharmacological accuracy.
+Extract active pharmaceutical ingredients (Generic Names/INN) and trade names with zero hallucination.`;
+
+      if (mode === 'opd-drug') {
+        return `${systemInstruction}
+
+TASK: Extract every pharmaceutical line item from this medical purchase order or pharmacy invoice and format into a standardized 6-column inventory structure.
+
+CRITICAL PHARMACEUTICAL EXTRACTION RULES:
+1. "generic_name": The standardized International Nonproprietary Name (INN) in English.
+   - You MUST identify the active ingredient even if only the Trade Name is printed!
+   - Examples of Thai Trade Name to Generic Name mappings:
+     * "Amk" / "Augmentin" / "Cavumox" / "Curam" / "Fleming" -> "Augmentin (Amoxy/Clav)" or "Amoxicillin"
+     * "Hiconcil" / "Ibiamox" / "Moxilin" / "Amoxy" -> "Amoxicillin"
+     * "Klacid" / "Klaacid" / "Crixan" -> "Clarithromycin"
+     * "Zithromax" / "Azithro" -> "Azithromycin"
+     * "Ciprobay" / "Cifran" / "Cipro" -> "Ciprofloxacin"
+     * "Cravit" / "Levo" -> "Levofloxacin"
+     * "Ponstan" / "Postan" -> "Mefenamic Acid"
+     * "Nurofen" / "Brufen" / "Ibu" -> "Ibuprofen"
+     * "Voltaren" / "Difelene" -> "Diclofenac Sodium"
+     * "Celebrex" / "Cobix" -> "Celecoxib"
+     * "Arcoxia" / "Torcoxia" -> "Etoricoxib"
+     * "Sara" / "Tylenol" / "Panadol" / "Paracap" / "Cemol" -> "Paracetamol"
+     * "Ultracet" / "Tramacet" -> "Tramadol + Paracetamol"
+     * "Norgesic" / "Muscol" -> "Orphenadrine + Paracetamol"
+     * "Myonal" / "Episone" -> "Eperisone HCl"
+     * "Sirdalud" -> "Tizanidine"
+     * "Zyrtec" / "Cetriz" / "Aller-C" -> "Cetirizine HCl"
+     * "Telfast" / "Fexodine" -> "Fexofenadine"
+     * "Xyzal" -> "Levocetirizine"
+     * "Clarityne" / "Allergin" -> "Loratadine"
+     * "Aerius" -> "Desloratadine"
+     * "Singulair" / "Montek" -> "Montelukast"
+     * "Ventolin" / "Asthalin" -> "Salbutamol"
+     * "Bisolvon" -> "Bromhexine HCl"
+     * "Mucosolvan" / "Ambril" -> "Ambroxol HCl"
+     * "Fluimucil" / "NAC long" / "Flemex" -> "Acetylcysteine"
+     * "Losec" / "Miracid" / "Ocid" -> "Omeprazole"
+     * "Nexium" -> "Esomeprazole"
+     * "Controloc" -> "Pantoprazole"
+     * "Pariet" -> "Rabeprazole"
+     * "Motilium" / "Miridon" -> "Domperidone"
+     * "Plasil" -> "Metoclopramide"
+     * "Buscopan" -> "Hyoscine butylbromide"
+     * "Air-X" / "Disflatyl" -> "Simethicone"
+     * "Glucophage" / "Siamformet" -> "Metformin"
+     * "Diamicron" -> "Gliclazide"
+     * "Norvasc" / "Amcard" -> "Amlodipine"
+     * "Cozaar" -> "Losartan"
+     * "Lipitor" / "Atorva" -> "Atorvastatin"
+     * "Crestor" / "Rosuva" -> "Rosuvastatin"
+     * "Zocor" / "Bestatin" -> "Simvastatin"
+     * "Plavix" -> "Clopidogrel"
+     * "Royal-D" / "Oreda" -> "Oral Rehydration Salts (ORS)"
+
+2. "strength": Drug potency with unit (e.g. "1000 mg", "500 mg", "625 mg", "120 mg/5ml", "10%", "500 mcg").
+3. "dosage_form": English formulation (e.g. "Tablet", "Capsule", "Syrup", "Suspension", "Cream", "Ointment", "Eye Drop", "Injection", "Sachet", "Ampoule", "Gel").
+4. "trade_name": Commercial brand name / Trade name as printed on the invoice (e.g. "Amk", "Fleming / GSK", "Sara 500", "Tylenol Syrup", "Royal-D").
+5. "unit": Smallest single dispensing inventory unit in Thai (e.g. "เม็ด", "แคปซูล", "ขวด", "ซอง", "หลอด", "แอมพูล", "ไวอัล").
+6. "unit_price": Purchase price PER SMALLEST DISPENSING UNIT (Float / Number with 2 decimals).
+   - UNIT PRICE CALCULATION: Divide package price by total smallest units contained:
+     * 1 bottle of 500 tablets @ 4,700 THB -> unit_price = 4700 / 500 = 9.40 (THB/เม็ด)
+     * 1 box of 14 tablets @ 130.20 THB -> unit_price = 130.20 / 14 = 9.30 (THB/เม็ด)
+     * 1 dozen (12 bottles) @ 384.00 THB -> unit_price = 384 / 12 = 32.00 (THB/ขวด)
+     * 1 box of 50 sachets @ 225.00 THB -> unit_price = 225 / 50 = 4.50 (THB/ซอง)
+     * 1 bottle of 1000 tablets @ 650.00 THB -> unit_price = 650 / 1000 = 0.65 (THB/เม็ด)
+   - "original_pack_info": Short description of the original package (e.g. "กระปุกละ 500 เม็ด @ 4,700฿" or "กล่อง 14 เม็ด @ 130.20฿").
+
+JSON Schema:
+{
+  "document_type": "opd_drug_receipt",
+  "vendor": "string | null",
+  "date": "string | null",
+  "items": [
+    {
+      "generic_name": "string",
+      "strength": "string",
+      "dosage_form": "string",
+      "trade_name": "string",
+      "unit": "string",
+      "unit_price": 0.0,
+      "original_pack_info": "string | null"
+    }
+  ],
+  "total_amount": 0.0
+}
+Return ONLY valid JSON without markdown code blocks.`;
+
+      } else if (mode === 'transfer-slip') {
+        return `${systemInstruction}
+
+TASK: Extract bank transfer slip information.
+Extract the following exact fields into a valid, single JSON object:
+- "bank": Name of the bank / e-wallet service (e.g. KBANK, SCB, KTB, BBL, PromptPay, TrueMoney)
+- "amount": Numerical total amount transferred (Number format, e.g. 1500 or 1500.50, without commas)
+- "datetime": Date and time of transfer in format "YYYY-MM-DD HH:mm" (or Thai standard format if year is B.E.)
+- "sender_masked": Name or account of sender with privacy masking (e.g. "xxx-x-1234-x" or "นาย ส***")
+- "receiver": Name or account/company of the recipient
+- "reference": Transaction reference number / Ref ID
+
+JSON Schema:
+{
+  "bank": "string | null",
+  "amount": 0.0,
+  "datetime": "string | null",
+  "sender_masked": "string | null",
+  "receiver": "string | null",
+  "reference": "string | null"
+}
+Return ONLY valid JSON.`;
+
+      } else if (mode === 'receipt') {
+        const headerList = receiptHeaders.length > 0 
+          ? receiptHeaders.join(', ') 
+          : 'วันที่, รายการ, จำนวน, ราคา/หน่วย, จำนวนเงิน, หมายเหตุ';
+
+        return `${systemInstruction}
+
+TASK: Extract structured receipt items / tabular line items from this invoice or receipt.
+Map the document contents into a structured JSON object containing:
+- "merchant": Name of the shop / clinic / company / vendor
+- "receipt_number": Receipt or Invoice number if available
+- "date": Receipt date
+- "headers": Array of table column headers matching: [${headerList.split(',').map(h => `"${h.trim()}"`).join(', ')}]
+- "items": Array of row objects. Each row object should contain keys corresponding directly to the headers above.
+- "total_amount": Total sum amount (Number format)
+
+JSON Schema:
+{
+  "merchant": "string | null",
+  "receipt_number": "string | null",
+  "date": "string | null",
+  "headers": ["${headerList.split(',').map(h => h.trim()).join('", "')}"],
+  "items": [
+    {
+      ${headerList.split(',').map(h => `"${h.trim()}": "value"`).join(',\n      ')}
+    }
+  ],
+  "total_amount": 0.0
+}
+Return ONLY valid JSON.`;
+      } else {
+        // Plain Text Mode
+        return `You are an OCR engine. Extract ALL visible text from the attached document/image with maximum fidelity.
+Preserve paragraph structures, headings, bullet points, and numerical details.
+Do not summarize. Return the raw extracted text directly.`;
+      }
+    }
+
+    /* ==========================================================================
+       6. Gemini API Client with Auto-Failover
+       ========================================================================== */
+    async function callGeminiApi(model, prompt, mimeType, base64Data, apiKey, signal) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Data
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          topP: 0.95,
+          maxOutputTokens: 4096
+        }
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: signal
+      });
+
+      if (!response.ok) {
+        let errMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errData = await response.json();
+          if (errData.error && errData.error.message) {
+            errMessage = errData.error.message;
+          }
+        } catch (_) {}
+        throw new Error(errMessage);
+      }
+
+      const data = await response.json();
+      
+      // Parse output text
+      if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts) {
+        const textParts = data.candidates[0].content.parts.map(p => p.text || '').join('\n');
+        return textParts.trim();
+      }
+
+      throw new Error('Gemini API ส่งการตอบกลับที่ไม่มีเนื้อหาข้อความ');
+    }
+
+    function cleanAndParseJson(rawText) {
+      let cleaned = rawText.trim();
+      // Remove markdown code fences if present
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/i, '').trim();
+      }
+      try {
+        return JSON.parse(cleaned);
+      } catch (err) {
+        // Fallback: extract JSON object via regex
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        }
+        throw err;
+      }
+    }
+
+    /* ==========================================================================
+       7. OCR Processing Pipeline & Orchestrator
+       ========================================================================== */
+    async function startOcrProcess() {
+      if (state.isProcessing) return;
+
+      // 1. Validate API Key
+      const currentApiKey = state.apiKey || storage.getApiKey();
+      if (!currentApiKey) {
+        showToast('กรุณาระบุ Gemini API Key ในเมนูการตั้งค่า (Settings) ก่อนเริ่มสแกน', 'warning');
+        app.openSettingsModal();
+        return;
+      }
+
+      // 2. Validate File
+      if (!state.fileBase64) {
+        showToast('กรุณาอัปโหลดรูปภาพหรือไฟล์ PDF ก่อน', 'warning');
+        return;
+      }
+
+      // Update State
+      state.isProcessing = true;
+      state.abortController = new AbortController();
+      const startTime = performance.now();
+
+      // UI updates
+      updateScanLoadingState(true);
+      
+      const selectedModel = document.getElementById('modelSelect').value;
+      const isFailoverEnabled = document.getElementById('failoverCheckbox').checked;
+
+      // Construct fallback list starting with chosen model
+      let candidateModels = [selectedModel];
+      if (isFailoverEnabled) {
+        const others = MODEL_FALLBACK_LIST.filter(m => m !== selectedModel);
+        candidateModels = candidateModels.concat(others);
+      }
+
+      const prompt = buildPrompt(state.mode, state.receiptHeaders);
+      let successResult = null;
+      let usedModelName = null;
+      let lastError = null;
+
+      for (let i = 0; i < candidateModels.length; i++) {
+        const modelToTry = candidateModels[i];
+        usedModelName = modelToTry;
+
+        // Update progress UI
+        document.getElementById('progressStatusText').textContent = i === 0 
+          ? (state.mode === 'opd-drug' ? 'กำลังวิเคราะห์รายการยาและคำนวณราคาต่อหน่วย...' : 'กำลังวิเคราะห์เอกสาร...') 
+          : `โมเดลก่อนหน้าไม่สำเร็จ กำลังลอง: ${modelToTry}...`;
+        document.getElementById('progressModelText').textContent = modelToTry;
+
+        try {
+          const rawResponseText = await callGeminiApi(
+            modelToTry,
+            prompt,
+            state.fileType,
+            state.fileBase64,
+            currentApiKey,
+            state.abortController.signal
+          );
+
+          if (state.mode === 'plain-text') {
+            successResult = rawResponseText;
+          } else {
+            // Must validate JSON
+            successResult = cleanAndParseJson(rawResponseText);
+            if (typeof successResult !== 'object' || successResult === null) {
+              throw new Error('โครงสร้างข้อมูลไม่ถูกต้อง');
+            }
+            // Auto-enrich OPD Drug items using Thai Pharmaceutical Knowledge Base
+            if (state.mode === 'opd-drug' && successResult.items && Array.isArray(successResult.items)) {
+              successResult.items = successResult.items.map(item => enrichOpdDrugItem(item));
+            }
+          }
+
+          // If reached here, model succeeded!
+          break;
+        } catch (err) {
+          lastError = err;
+          console.warn(`Model ${modelToTry} attempt failed:`, err);
+          if (!isFailoverEnabled) {
+            break;
+          }
+        }
+      }
+
+      const endTime = performance.now();
+      state.elapsedMs = Math.round(endTime - startTime);
+      state.isProcessing = false;
+      updateScanLoadingState(false);
+
+      if (successResult !== null) {
+        state.result = successResult;
+        state.resultType = state.mode;
+        state.usedModel = usedModelName;
+        renderOutputResults();
+        showToast(`สแกนสำเร็จด้วยโมเดล ${usedModelName} (${(state.elapsedMs / 1000).toFixed(1)}s)`, 'success');
+      } else {
+        showToast(`การประมวลผลล้มเหลว: ${lastError ? lastError.message : 'ไม่สามารถอ่านข้อมูลได้'}`, 'error', 5000);
+        renderFailureState(lastError);
+      }
+    }
+
+    function updateScanLoadingState(isLoading) {
+      const scanBtn = document.getElementById('scanBtn');
+      const scanBtnText = document.getElementById('scanBtnText');
+      const progressBox = document.getElementById('scanProgress');
+
+      if (isLoading) {
+        scanBtn.disabled = true;
+        scanBtnText.textContent = 'กำลังประมวลผล...';
+        progressBox.style.display = 'block';
+      } else {
+        scanBtn.disabled = false;
+        scanBtnText.textContent = 'เริ่มสแกนและดึงข้อมูล';
+        progressBox.style.display = 'none';
+      }
+    }
+
+    /* ==========================================================================
+       8. Result Rendering (Special OPD Drug Table / Standard Tables / JSON)
+       ========================================================================== */
+    function renderOutputResults() {
+      const emptyState = document.getElementById('emptyState');
+      const statusBadge = document.getElementById('resultStatusBadge');
+      const tableToolbar = document.getElementById('tableToolbar');
+      
+      emptyState.style.display = 'none';
+      statusBadge.className = 'result-status-badge success';
+      statusBadge.innerHTML = `
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>สำเร็จ (${state.usedModel || 'AI'} • ${(state.elapsedMs / 1000).toFixed(1)}s)</span>
+      `;
+
+      if (state.resultType === 'opd-drug') {
+        tableToolbar.style.display = 'flex';
+      } else {
+        tableToolbar.style.display = 'none';
+      }
+
+      // 1. Render Table View
+      renderTableView();
+
+      // 2. Render JSON View
+      renderJsonView();
+
+      // 3. Render Plain Text View
+      renderTextView();
+
+      // Switch to appropriate active tab
+      switchView(state.activeView);
+    }
+
+    function renderFailureState(error) {
+      const statusBadge = document.getElementById('resultStatusBadge');
+      statusBadge.className = 'result-status-badge failed';
+      statusBadge.innerHTML = `
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+        <span>เกิดข้อผิดพลาด</span>
+      `;
+    }
+
+    function renderTableView() {
+      const table = document.getElementById('resultDataTable');
+      table.innerHTML = '';
+
+      if (!state.result) return;
+
+      if (state.resultType === 'opd-drug') {
+        // ==========================================
+        // Special 6-Column OPD Drug Form
+        // Generic Name | Strength | Dosage Form | Trade Name | หน่วย | ราคาซื้อ (฿)
+        // ==========================================
+        const items = state.result.items || [];
+        
+        let theadHtml = `
+          <thead>
+            <tr>
+              <th style="min-width: 160px;">Generic Name</th>
+              <th style="min-width: 100px;">Strength</th>
+              <th style="min-width: 100px;">Dosage Form</th>
+              <th style="min-width: 140px;">Trade Name</th>
+              <th style="min-width: 80px;">หน่วย</th>
+              <th style="min-width: 110px; text-align: right;">ราคาซื้อ (฿)</th>
+              <th style="width: 40px; text-align: center;">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+
+        let tbodyHtml = '';
+        if (items.length === 0) {
+          tbodyHtml += `<tr><td colspan="7" style="text-align:center; color: var(--text-muted); padding: 2rem;">ไม่พบรายการยา</td></tr>`;
+        } else {
+          items.forEach((drug, index) => {
+            const priceDisplay = typeof drug.unit_price === 'number' 
+              ? `฿${drug.unit_price.toFixed(2)}` 
+              : (drug.unit_price || '-');
+
+            tbodyHtml += `
+              <tr>
+                <td class="generic-col">
+                  <div class="editable-cell" contenteditable="true" onblur="app.updateOpdDrugCell(${index}, 'generic_name', this.innerText)">${escapeHtml(drug.generic_name || '')}</div>
+                  ${drug.original_pack_info ? `<span class="table-sub-badge" title="ข้อมูลจากแพ็กเกจเดิม">${escapeHtml(drug.original_pack_info)}</span>` : ''}
+                </td>
+                <td>
+                  <div class="editable-cell" contenteditable="true" onblur="app.updateOpdDrugCell(${index}, 'strength', this.innerText)">${escapeHtml(drug.strength || '')}</div>
+                </td>
+                <td>
+                  <div class="editable-cell" contenteditable="true" onblur="app.updateOpdDrugCell(${index}, 'dosage_form', this.innerText)">${escapeHtml(drug.dosage_form || '')}</div>
+                </td>
+                <td>
+                  <div class="editable-cell" contenteditable="true" onblur="app.updateOpdDrugCell(${index}, 'trade_name', this.innerText)">${escapeHtml(drug.trade_name || '')}</div>
+                </td>
+                <td>
+                  <div class="editable-cell" contenteditable="true" onblur="app.updateOpdDrugCell(${index}, 'unit', this.innerText)">${escapeHtml(drug.unit || 'เม็ด')}</div>
+                </td>
+                <td class="price-col" style="text-align: right;">
+                  <div class="editable-cell" contenteditable="true" onblur="app.updateOpdDrugCell(${index}, 'unit_price', this.innerText)">${escapeHtml(priceDisplay)}</div>
+                </td>
+                <td style="text-align: center;">
+                  <button type="button" class="btn btn-danger-ghost btn-sm" style="padding: 0.2rem 0.4rem;" onclick="app.deleteOpdDrugRow(${index})" title="ลบรายการนี้">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+        }
+
+        tbodyHtml += '</tbody>';
+        table.innerHTML = theadHtml + tbodyHtml;
+
+      } else if (state.resultType === 'transfer-slip') {
+        // Key-Value Table for Transfer Slip
+        const fields = [
+          { key: 'bank', label: 'ธนาคาร (Bank)', desc: 'สถาบันการเงินหรือกระเป๋าเงิน' },
+          { key: 'amount', label: 'ยอดเงินโอน (Amount)', desc: 'จำนวนเงินสุทธิ' },
+          { key: 'datetime', label: 'วัน-เวลาที่ทำรายการ (DateTime)', desc: 'วันและเวลาตามสลิป' },
+          { key: 'sender_masked', label: 'ผู้โอนเงิน (Sender)', desc: 'ข้อมูลผู้โอนที่ปิดบังข้อมูลบางส่วน' },
+          { key: 'receiver', label: 'ผู้รับเงิน (Receiver)', desc: 'บัญชีหรือร้านค้าปลายทาง' },
+          { key: 'reference', label: 'เลขอ้างอิง (Reference ID)', desc: 'รหัสอ้างอิงของธนาคาร' }
+        ];
+
+        let tbodyHtml = `
+          <thead>
+            <tr>
+              <th style="width: 35%;">รายการข้อมูล</th>
+              <th>ค่าที่อ่านได้ (คลิกเพื่อแก้ไขได้)</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+
+        fields.forEach(f => {
+          let val = state.result[f.key];
+          if (val === null || val === undefined) val = '-';
+          if (f.key === 'amount' && typeof val === 'number') {
+            val = val.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+
+          tbodyHtml += `
+            <tr>
+              <td>
+                <div class="table-field-key">${f.label}</div>
+                <span class="table-field-desc">${f.desc}</span>
+              </td>
+              <td>
+                <div class="editable-cell" contenteditable="true" data-field="${f.key}" onblur="app.updateSlipField('${f.key}', this.innerText)">${escapeHtml(String(val))}</div>
+              </td>
+            </tr>
+          `;
+        });
+
+        tbodyHtml += '</tbody>';
+        table.innerHTML = tbodyHtml;
+
+      } else if (state.resultType === 'receipt') {
+        // Tabular Line Items for Receipt
+        const res = state.result;
+        const headers = res.headers && res.headers.length > 0 
+          ? res.headers 
+          : (res.items && res.items.length > 0 ? Object.keys(res.items[0]) : state.receiptHeaders);
+
+        const items = res.items || [];
+
+        let theadHtml = '<thead><tr>';
+        headers.forEach(h => {
+          theadHtml += `<th>${escapeHtml(h)}</th>`;
+        });
+        theadHtml += '<th style="width: 40px; text-align: center;">จัดการ</th></tr></thead>';
+
+        let tbodyHtml = '<tbody>';
+        if (items.length === 0) {
+          tbodyHtml += `<tr><td colspan="${headers.length + 1}" style="text-align:center; color: var(--text-muted);">ไม่พบรายการสินค้า/บริการ</td></tr>`;
+        } else {
+          items.forEach((item, rowIndex) => {
+            tbodyHtml += '<tr>';
+            headers.forEach(h => {
+              const cellVal = item[h] !== undefined && item[h] !== null ? item[h] : '';
+              tbodyHtml += `
+                <td>
+                  <div class="editable-cell" contenteditable="true" data-row="${rowIndex}" data-header="${escapeHtml(h)}" onblur="app.updateReceiptCell(${rowIndex}, '${escapeHtml(h)}', this.innerText)">${escapeHtml(String(cellVal))}</div>
+                </td>
+              `;
+            });
+            tbodyHtml += `
+              <td style="text-align: center;">
+                <button type="button" class="btn btn-danger-ghost btn-sm" style="padding: 0.2rem 0.4rem;" onclick="app.deleteReceiptRow(${rowIndex})" title="ลบแถวนี้">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </td>
+            </tr>`;
+          });
+        }
+        tbodyHtml += '</tbody>';
+
+        table.innerHTML = theadHtml + tbodyHtml;
+
+      } else {
+        // Plain Text Mode Table representation
+        table.innerHTML = `
+          <thead>
+            <tr><th>ข้อความที่สกัดได้ทั้งหมด</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="white-space: pre-wrap; font-family: var(--font-mono); line-height: 1.6;">${escapeHtml(String(state.result))}</td>
+            </tr>
+          </tbody>
+        `;
+      }
+    }
+
+    function renderJsonView() {
+      const codeBlock = document.getElementById('jsonCodeBlock');
+      if (!state.result) {
+        codeBlock.innerHTML = '';
+        return;
+      }
+      const jsonString = typeof state.result === 'string' ? JSON.stringify({ raw_text: state.result }, null, 2) : JSON.stringify(state.result, null, 2);
+      codeBlock.innerHTML = syntaxHighlightJson(jsonString);
+    }
+
+    function renderTextView() {
+      const textEditor = document.getElementById('textEditor');
+      if (!state.result) {
+        textEditor.value = '';
+        return;
+      }
+      if (typeof state.result === 'string') {
+        textEditor.value = state.result;
+      } else {
+        textEditor.value = JSON.stringify(state.result, null, 2);
+      }
+    }
+
+    function switchView(viewName) {
+      state.activeView = viewName;
+      
+      const tabBtns = document.querySelectorAll('.view-tab-btn');
+      tabBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-view') === viewName);
+      });
+
+      const tableWrapper = document.getElementById('tableViewWrapper');
+      const jsonWrapper = document.getElementById('jsonViewWrapper');
+      const textWrapper = document.getElementById('textViewWrapper');
+
+      if (!state.result) return;
+
+      tableWrapper.style.display = viewName === 'table' ? 'block' : 'none';
+      jsonWrapper.style.display = viewName === 'json' ? 'block' : 'none';
+      textWrapper.style.display = viewName === 'text' ? 'block' : 'none';
+    }
+
+    function syntaxHighlightJson(json) {
+      json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'json-key';
+          } else {
+            cls = 'json-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    /* ==========================================================================
+       9. Export, Copy & Data Sending Adapters
+       ========================================================================== */
+    const exporters = {
+      // 1. Copy to Clipboard
+      async copyCurrent() {
+        if (!state.result) {
+          showToast('ไม่มีข้อมูลสำหรับคัดลอก', 'warning');
+          return;
+        }
+        let textToCopy = '';
+        if (state.activeView === 'json') {
+          textToCopy = JSON.stringify(state.result, null, 2);
+        } else if (state.activeView === 'text') {
+          textToCopy = document.getElementById('textEditor').value;
+        } else {
+          // Table TSV
+          textToCopy = exporters.generateTsv();
+        }
+
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+          showToast('คัดลอกข้อมูลลงคลิปบอร์ดแล้ว', 'success');
+        } catch (err) {
+          showToast('ไม่สามารถเข้าถึงคลิปบอร์ดได้', 'error');
+        }
+      },
+
+      // 2. Copy as TSV (Tab Separated for Excel / Google Sheets)
+      async copyTsv() {
+        if (!state.result) {
+          showToast('ไม่มีข้อมูลสำหรับคัดลอก', 'warning');
+          return;
+        }
+        const tsv = exporters.generateTsv();
+        try {
+          await navigator.clipboard.writeText(tsv);
+          showToast('คัดลอกตาราง (TSV) สำหรับวางใน Excel เรียบร้อยแล้ว', 'success');
+        } catch (err) {
+          showToast('ไม่สามารถคัดลอกได้', 'error');
+        }
+      },
+
+      generateTsv() {
+        if (!state.result) return '';
+
+        if (state.resultType === 'opd-drug') {
+          let tsv = 'Generic Name\tStrength\tDosage Form\tTrade Name\tหน่วย\tราคาซื้อ (฿)\n';
+          (state.result.items || []).forEach(item => {
+            const price = typeof item.unit_price === 'number' ? `฿${item.unit_price.toFixed(2)}` : (item.unit_price || '');
+            tsv += `${item.generic_name || ''}\t${item.strength || ''}\t${item.dosage_form || ''}\t${item.trade_name || ''}\t${item.unit || ''}\t${price}\n`;
+          });
+          return tsv;
+        } else if (state.resultType === 'transfer-slip') {
+          const res = state.result;
+          return `รายการ\tข้อมูล\nธนาคาร\t${res.bank || ''}\nยอดเงิน\t${res.amount || ''}\nวันที่เวลา\t${res.datetime || ''}\nผู้โอน\t${res.sender_masked || ''}\nผู้รับเงิน\t${res.receiver || ''}\nReference\t${res.reference || ''}`;
+        } else if (state.resultType === 'receipt') {
+          const res = state.result;
+          const headers = res.headers || (res.items && res.items.length > 0 ? Object.keys(res.items[0]) : []);
+          let tsv = headers.join('\t') + '\n';
+          (res.items || []).forEach(row => {
+            tsv += headers.map(h => row[h] !== undefined ? String(row[h]).replace(/\t/g, ' ') : '').join('\t') + '\n';
+          });
+          return tsv;
+        } else {
+          return String(state.result);
+        }
+      },
+
+      // 3. Export CSV with UTF-8 BOM for Thai Support in Excel
+      exportCsv() {
+        if (!state.result) {
+          showToast('ไม่มีข้อมูลสำหรับ Export', 'warning');
+          return;
+        }
+
+        let csvContent = '\uFEFF'; // UTF-8 BOM for MS Excel
+
+        if (state.resultType === 'opd-drug') {
+          csvContent += '"Generic Name","Strength","Dosage Form","Trade Name","หน่วย","ราคาซื้อ (฿)"\n';
+          (state.result.items || []).forEach(item => {
+            const price = typeof item.unit_price === 'number' ? item.unit_price.toFixed(2) : (item.unit_price || '');
+            csvContent += `"${(item.generic_name || '').replace(/"/g, '""')}","${(item.strength || '').replace(/"/g, '""')}","${(item.dosage_form || '').replace(/"/g, '""')}","${(item.trade_name || '').replace(/"/g, '""')}","${(item.unit || '').replace(/"/g, '""')}","${price}"\n`;
+          });
+        } else if (state.resultType === 'transfer-slip') {
+          const res = state.result;
+          csvContent += 'Field,Value\n';
+          csvContent += `"Bank","${(res.bank || '').replace(/"/g, '""')}"\n`;
+          csvContent += `"Amount",${res.amount || 0}\n`;
+          csvContent += `"DateTime","${(res.datetime || '').replace(/"/g, '""')}"\n`;
+          csvContent += `"SenderMasked","${(res.sender_masked || '').replace(/"/g, '""')}"\n`;
+          csvContent += `"Receiver","${(res.receiver || '').replace(/"/g, '""')}"\n`;
+          csvContent += `"Reference","${(res.reference || '').replace(/"/g, '""')}"\n`;
+        } else if (state.resultType === 'receipt') {
+          const res = state.result;
+          const headers = res.headers || (res.items && res.items.length > 0 ? Object.keys(res.items[0]) : []);
+          csvContent += headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+          (res.items || []).forEach(row => {
+            csvContent += headers.map(h => `"${String(row[h] !== undefined ? row[h] : '').replace(/"/g, '""')}"`).join(',') + '\n';
+          });
+        } else {
+          csvContent += `"Extracted_Text"\n"${String(state.result).replace(/"/g, '""')}"\n`;
+        }
+
+        exporters.downloadFile(csvContent, `ocr-result-${Date.now()}.csv`, 'text/csv;charset=utf-8;');
+        showToast('ดาวน์โหลดไฟล์ CSV เรียบร้อยแล้ว', 'success');
+      },
+
+      // 4. Export JSON
+      exportJson() {
+        if (!state.result) {
+          showToast('ไม่มีข้อมูลสำหรับ Export', 'warning');
+          return;
+        }
+        const jsonStr = JSON.stringify(state.result, null, 2);
+        exporters.downloadFile(jsonStr, `ocr-result-${Date.now()}.json`, 'application/json');
+        showToast('ดาวน์โหลดไฟล์ JSON เรียบร้อยแล้ว', 'success');
+      },
+
+      // 5. Generic File Download Helper
+      downloadFile(content, fileName, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      },
+
+      // 6. Webhook Dispatch Adapter
+      async sendToWebhook(url) {
+        if (!url) {
+          showToast('กรุณาระบุ Webhook URL', 'warning');
+          return;
+        }
+        const payload = {
+          timestamp: new Date().toISOString(),
+          mode: state.resultType,
+          model: state.usedModel,
+          file_name: state.fileName,
+          data: state.result
+        };
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            showToast('ส่งข้อมูลไปยัง Webhook สำเร็จ', 'success');
+            app.closeWebhookModal();
+          } else {
+            showToast(`Webhook ตอบกลับ Status: ${res.status}`, 'error');
+          }
+        } catch (err) {
+          showToast(`เกิดข้อผิดพลาดในการส่ง Webhook: ${err.message}`, 'error');
+        }
+      }
+    };
+
+    /* ==========================================================================
+       10. Interactive Demo Mock Data Sets (Includes OPD Drug Mock Data)
+       ========================================================================== */
+    const demoData = {
+      'opd-drug': {
+        document_type: 'opd_drug_receipt',
+        vendor: 'Bangkok Medical & Pharma Supply',
+        date: '2026-08-26',
+        items: [
+          {
+            generic_name: 'Amoxicillin',
+            strength: '1000  mg',
+            dosage_form: 'Tablet',
+            trade_name: 'Amk',
+            unit: 'เม็ด',
+            unit_price: 9.40,
+            original_pack_info: 'กระปุกละ 500 เม็ด @ 4,700฿'
+          },
+          {
+            generic_name: 'Augmentin (Amoxy/Clav)',
+            strength: '1000  mg',
+            dosage_form: 'Tablet',
+            trade_name: 'Fleming / GSK',
+            unit: 'เม็ด',
+            unit_price: 9.30,
+            original_pack_info: 'กล่อง 14 เม็ด (2 แผง) @ 130.20฿'
+          },
+          {
+            generic_name: 'Paracetamol',
+            strength: '500 mg',
+            dosage_form: 'Tablet',
+            trade_name: 'Sara 500',
+            unit: 'เม็ด',
+            unit_price: 0.65,
+            original_pack_info: 'กระปุก 1,000 เม็ด @ 650฿'
+          },
+          {
+            generic_name: 'Paracetamol Syrup',
+            strength: '120 mg/5ml',
+            dosage_form: 'Syrup',
+            trade_name: 'Tylenol Syrup 60ml',
+            unit: 'ขวด',
+            unit_price: 32.00,
+            original_pack_info: 'โหลละ 12 ขวด @ 384฿'
+          },
+          {
+            generic_name: 'Oral Rehydration Salts (ORS)',
+            strength: 'Formula WHO',
+            dosage_form: 'Sachet',
+            trade_name: 'Royal-D',
+            unit: 'ซอง',
+            unit_price: 4.50,
+            original_pack_info: 'กล่องละ 50 ซอง @ 225฿'
+          }
+        ]
+      },
+      'transfer-slip': {
+        bank: 'KBANK (กสิกรไทย)',
+        amount: 3250.00,
+        datetime: '2026-08-26 09:15',
+        sender_masked: 'xxx-x-8891-x (นาย กฤตภพ ส.)',
+        receiver: 'คลินิกทันตกรรมสไมล์เฮลท์ (PromptPay 0812345678)',
+        reference: '014238091512398471'
+      },
+      'receipt': {
+        merchant: 'Bangkok Wellness & Skin Clinic',
+        receipt_number: 'REC-2026-0882',
+        date: '2026-08-26',
+        headers: ['วันที่', 'รายการ', 'จำนวน', 'ราคา/หน่วย', 'จำนวนเงิน', 'หมายเหตุ'],
+        items: [
+          { 'วันที่': '26/08/2026', 'รายการ': 'ปรึกษาแพทย์เฉพาะทาง', 'จำนวน': '1', 'ราคา/หน่วย': '500', 'จำนวนเงิน': '500', 'หมายเหตุ': 'ตรวจสุขภาพผิว' },
+          { 'วันที่': '26/08/2026', 'รายการ': 'Ultra Glow Laser Treatment', 'จำนวน': '1', 'ราคา/หน่วย': '2,500', 'จำนวนเงิน': '2,500', 'หมายเหตุ': 'คอร์สดูแลพิเศษ' },
+          { 'วันที่': '26/08/2026', 'รายการ': 'Facial Serum Vitamin C 30ml', 'จำนวน': '2', 'ราคา/หน่วย': '450', 'จำนวนเงิน': '900', 'หมายเหตุ': 'เวชสำอาง' }
+        ],
+        total_amount: 3900.00
+      },
+      'plain-text': `ใบรับรองแพทย์ / Medical Certificate
+โรงพยาบาลศูนย์การแพทย์กรุงเทพ
+
+วันที่ตรวจ: 26 สิงหาคม 2569
+ข้าพเจ้า นายแพทย์ เอกชัย ปัญญาดี ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว.48912
+ได้ทำการตรวจร่างกายของ นายสมศักดิ์ สุขเจริญ
+อาการสำคัญ: มีอาการไข้หวัด ปวดศีรษะ และไอต่อเนื่อง 2 วัน
+ผลการวินิจฉัย: โรคติดเชื้อทางเดินหายใจส่วนบน (Upper Respiratory Tract Infection)
+ความเห็นของแพทย์: สมควรได้รับการพักผ่อนและหยุดปฏิบัติงานเป็นเวลา 2 วัน ตั้งแต่วันที่ 26-27 ส.ค. 2569`
+    };
+
+    /* ==========================================================================
+       11. Global App Controller & Event Handlers
+       ========================================================================== */
+    window.app = {
+      init() {
+        this.loadSettings();
+        this.setupEventListeners();
+        this.updateApiKeyBadge();
+      },
+
+      loadSettings() {
+        const savedKey = storage.getApiKey();
+        if (savedKey) {
+          state.apiKey = savedKey;
+          document.getElementById('apiKeyInput').value = savedKey;
+        }
+      },
+
+      updateApiKeyBadge() {
+        const badge = document.getElementById('apiKeyBadgeStatus');
+        const currentKey = state.apiKey || storage.getApiKey();
+        if (currentKey) {
+          badge.textContent = 'API Key (เชื่อมต่อแล้ว)';
+          badge.parentElement.classList.remove('btn-outline-primary');
+          badge.parentElement.classList.add('btn-secondary');
+        } else {
+          badge.textContent = 'ระบุ API Key';
+          badge.parentElement.classList.remove('btn-secondary');
+          badge.parentElement.classList.add('btn-outline-primary');
+        }
+      },
+
+      openSettingsModal() {
+        document.getElementById('settingsModal').classList.add('open');
+      },
+
+      closeSettingsModal() {
+        document.getElementById('settingsModal').classList.remove('open');
+      },
+
+      openWebhookModal() {
+        if (!state.result) {
+          showToast('ไม่มีข้อมูลสำหรับส่ง Webhook', 'warning');
+          return;
+        }
+        document.getElementById('webhookModal').classList.add('open');
+      },
+
+      closeWebhookModal() {
+        document.getElementById('webhookModal').classList.remove('open');
+      },
+
+      loadDemo(modeKey) {
+        // Switch Mode Radio
+        const modeRadio = document.querySelector(`input[name="ocrMode"][value="${modeKey}"]`);
+        if (modeRadio) {
+          modeRadio.checked = true;
+          this.handleModeChange(modeKey);
+        }
+
+        // Mock state
+        state.result = JSON.parse(JSON.stringify(demoData[modeKey]));
+        state.resultType = modeKey;
+        state.usedModel = 'gemini-3.6-flash (Demo Mode)';
+        state.elapsedMs = 450;
+        state.fileName = modeKey === 'opd-drug' 
+          ? 'demo-drug-receipt.jpg' 
+          : (modeKey === 'transfer-slip' ? 'demo-slip.jpg' : (modeKey === 'receipt' ? 'demo-receipt.pdf' : 'demo-document.png'));
+
+        renderOutputResults();
+        showToast(`โหลดชุดข้อมูลตัวอย่าง (${modeKey}) เรียบร้อยแล้ว`, 'info');
+      },
+
+      handleModeChange(newMode) {
+        state.mode = newMode;
+        const headersConfig = document.getElementById('receiptHeadersConfig');
+        if (newMode === 'receipt') {
+          headersConfig.style.display = 'block';
+        } else {
+          headersConfig.style.display = 'none';
+        }
+      },
+
+      updateOpdDrugCell(rowIndex, fieldKey, newValue) {
+        if (state.result && state.resultType === 'opd-drug' && state.result.items) {
+          if (state.result.items[rowIndex]) {
+            if (fieldKey === 'unit_price') {
+              const cleaned = newValue.replace(/[฿,]/g, '').trim();
+              const num = parseFloat(cleaned);
+              state.result.items[rowIndex][fieldKey] = isNaN(num) ? newValue : num;
+            } else {
+              state.result.items[rowIndex][fieldKey] = newValue.trim();
+              if (fieldKey === 'trade_name') {
+                enrichOpdDrugItem(state.result.items[rowIndex]);
+                renderTableView();
+              }
+            }
+            renderJsonView();
+            renderTextView();
+          }
+        }
+      },
+
+      deleteOpdDrugRow(rowIndex) {
+        if (state.result && state.resultType === 'opd-drug' && state.result.items) {
+          state.result.items.splice(rowIndex, 1);
+          renderTableView();
+          renderJsonView();
+          renderTextView();
+          showToast('ลบรายการยาเรียบร้อยแล้ว', 'info');
+        }
+      },
+
+      addOpdDrugRow() {
+        if (!state.result || state.resultType !== 'opd-drug') {
+          state.result = { items: [] };
+          state.resultType = 'opd-drug';
+        }
+        if (!state.result.items) state.result.items = [];
+
+        state.result.items.push({
+          generic_name: 'ยาตัวใหม่',
+          strength: '500 mg',
+          dosage_form: 'Tablet',
+          trade_name: '-',
+          unit: 'เม็ด',
+          unit_price: 0.00
+        });
+
+        renderOutputResults();
+        showToast('เพิ่มแถวยาใหม่เรียบร้อยแล้ว (สามารถคลิกแก้ไขได้ทันที)', 'info');
+      },
+
+      updateSlipField(fieldKey, newValue) {
+        if (state.result && state.resultType === 'transfer-slip') {
+          if (fieldKey === 'amount') {
+            const parsedNum = parseFloat(newValue.replace(/,/g, ''));
+            state.result[fieldKey] = isNaN(parsedNum) ? newValue : parsedNum;
+          } else {
+            state.result[fieldKey] = newValue.trim();
+          }
+          renderJsonView();
+          renderTextView();
+        }
+      },
+
+      updateReceiptCell(rowIndex, headerKey, newValue) {
+        if (state.result && state.resultType === 'receipt' && state.result.items) {
+          if (state.result.items[rowIndex]) {
+            state.result.items[rowIndex][headerKey] = newValue.trim();
+            renderJsonView();
+            renderTextView();
+          }
+        }
+      },
+
+      deleteReceiptRow(rowIndex) {
+        if (state.result && state.resultType === 'receipt' && state.result.items) {
+          state.result.items.splice(rowIndex, 1);
+          renderTableView();
+          renderJsonView();
+          renderTextView();
+          showToast('ลบรายการแถวเรียบร้อยแล้ว', 'info');
+        }
+      },
+
+      clearAllResults() {
+        state.result = null;
+        state.resultType = null;
+        state.usedModel = null;
+        document.getElementById('emptyState').style.display = 'flex';
+        document.getElementById('tableViewWrapper').style.display = 'none';
+        document.getElementById('jsonViewWrapper').style.display = 'none';
+        document.getElementById('textViewWrapper').style.display = 'none';
+        document.getElementById('tableToolbar').style.display = 'none';
+        const statusBadge = document.getElementById('resultStatusBadge');
+        statusBadge.className = 'result-status-badge';
+        statusBadge.innerHTML = '<span>ยังไม่มีข้อมูล</span>';
+        showToast('ล้างผลลัพธ์เรียบร้อยแล้ว', 'info');
+      },
+
+      setupEventListeners() {
+        // File Dropzone Events
+        const dropzone = document.getElementById('uploadDropzone');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('drag-over');
+          });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('drag-over');
+          });
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFileSelected(e.dataTransfer.files[0]);
+          }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleFileSelected(e.target.files[0]);
+          }
+        });
+
+        document.getElementById('removeFileBtn').addEventListener('click', removeFile);
+
+        // OCR Mode Radios
+        const modeRadios = document.querySelectorAll('input[name="ocrMode"]');
+        modeRadios.forEach(radio => {
+          radio.addEventListener('change', (e) => {
+            this.handleModeChange(e.target.value);
+          });
+        });
+
+        // Receipt Headers Input
+        const receiptHeadersInput = document.getElementById('receiptHeadersInput');
+        receiptHeadersInput.addEventListener('change', (e) => {
+          state.receiptHeaders = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+        });
+
+        document.getElementById('resetHeadersBtn').addEventListener('click', () => {
+          receiptHeadersInput.value = 'วันที่, รายการ, จำนวน, ราคา/หน่วย, จำนวนเงิน, หมายเหตุ';
+          state.receiptHeaders = ['วันที่', 'รายการ', 'จำนวน', 'ราคา/หน่วย', 'จำนวนเงิน', 'หมายเหตุ'];
+          showToast('รีเซ็ตหัวตารางเป็นค่าเริ่มต้นแล้ว', 'info');
+        });
+
+        // Scan Action Trigger
+        document.getElementById('scanBtn').addEventListener('click', startOcrProcess);
+
+        // View Switcher Buttons
+        document.querySelectorAll('.view-tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            switchView(btn.getAttribute('data-view'));
+          });
+        });
+
+        // Action Bar Buttons
+        document.getElementById('copyResultBtn').addEventListener('click', () => exporters.copyCurrent());
+        document.getElementById('copyTsvBtn').addEventListener('click', () => exporters.copyTsv());
+        document.getElementById('exportCsvBtn').addEventListener('click', () => exporters.exportCsv());
+        document.getElementById('exportJsonBtn').addEventListener('click', () => exporters.exportJson());
+        document.getElementById('sendDataBtn').addEventListener('click', () => this.openWebhookModal());
+        document.getElementById('clearResultBtn').addEventListener('click', () => this.clearAllResults());
+
+        // Header Buttons
+        document.getElementById('quickDemoBtn').addEventListener('click', () => this.loadDemo(state.mode));
+        document.getElementById('settingsBtn').addEventListener('click', () => this.openSettingsModal());
+
+        // Settings Modal Actions
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const toggleKeyBtn = document.getElementById('toggleApiKeyVisibility');
+        toggleKeyBtn.addEventListener('click', () => {
+          if (apiKeyInput.type === 'password') {
+            apiKeyInput.type = 'text';
+          } else {
+            apiKeyInput.type = 'password';
+          }
+        });
+
+        document.getElementById('saveApiKeyBtn').addEventListener('click', () => {
+          const val = apiKeyInput.value.trim();
+          state.apiKey = val;
+          const shouldSave = document.getElementById('saveApiKeyCheckbox').checked;
+          if (shouldSave) {
+            storage.setApiKey(val);
+          } else {
+            storage.clearApiKey();
+          }
+          this.updateApiKeyBadge();
+          this.closeSettingsModal();
+          showToast('บันทึกการตั้งค่า API Key แล้ว', 'success');
+        });
+
+        document.getElementById('clearApiKeyBtn').addEventListener('click', () => {
+          storage.clearApiKey();
+          state.apiKey = '';
+          apiKeyInput.value = '';
+          this.updateApiKeyBadge();
+          showToast('ล้างการจดจำ API Key แล้ว', 'info');
+        });
+
+        // Webhook Submit
+        document.getElementById('submitWebhookBtn').addEventListener('click', () => {
+          const url = document.getElementById('webhookUrlInput').value.trim();
+          exporters.sendToWebhook(url);
+        });
+
+        // Synchronize Plain Text Editor Edits
+        document.getElementById('textEditor').addEventListener('input', (e) => {
+          if (state.resultType === 'plain-text') {
+            state.result = e.target.value;
+          }
+        });
+      }
+    };
+
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      app.init();
+    });
+  </script>
+</body>
+</html>
