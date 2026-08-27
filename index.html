@@ -17,6 +17,9 @@
   <!-- PDF.js Library for Client-side PDF Rendering & Password Unlocking -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
+  <!-- Supabase JS Client for Realtime Cloud Database Sync -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     /* ==========================================================================
        1. DESIGN SYSTEM & CSS VARIABLES
@@ -2198,6 +2201,12 @@
       </div>
 
       <div class="header-right">
+        <!-- Supabase Cloud Sync Status Badge -->
+        <div id="cloudSyncStatusBadge" class="cloud-sync-badge" onclick="Router.navigate('settings')" title="สถานะการเชื่อมต่อ Supabase Cloud Database (คลิกเพื่อตั้งค่า)" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 600; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; transition: all 0.2s ease;">
+          <span class="sync-dot" id="cloudSyncDot" style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+          <span id="cloudSyncStatusText">Supabase Realtime</span>
+        </div>
+
         <!-- Font Size Scaler (2 Tiers: 100% vs 150%) -->
         <div class="font-size-group" title="ปรับขนาดตัวอักษร: 100% (ปกติ) หรือ 150% (ใหญ่)">
           <button class="font-size-btn active" id="btnFontNormal" onclick="FontSize.set('normal')"
@@ -2542,7 +2551,7 @@
                 <span>📸 สแกนบิลขายด้วย AI</span>
               </button>
               <button class="btn btn-secondary" onclick="SdfImportModal.open()">
-                <span>📥 นำเข้าไฟล์ Express .SDF / โฟลเดอร์</span>
+                <span>📥 นำเข้าบิลขาย Express (.TXT / .SDF / โฟลเดอร์)</span>
               </button>
             </div>
           </div>
@@ -3349,6 +3358,52 @@
             </label>
           </div>
 
+          <!-- Supabase Cloud Database & Realtime Sync Card -->
+          <div
+            style="background: var(--bg-surface-elevated); padding: 18px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1.5px solid rgba(16, 185, 129, 0.35); box-shadow: 0 4px 16px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <label class="form-label" style="font-size: 14.5px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                  <span>⚡ Supabase Cloud Database (Online Realtime Sync หลายเครื่อง)</span>
+                </label>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 0;">
+                  เชื่อมต่อฐานข้อมูลออนไลน์ส่วนกลาง บันทึกและอัปเดตทุกการเปลี่ยนแปลงอัตโนมัติ ใช้งานพร้อมกันได้หลายเครื่อง Realtime
+                </p>
+              </div>
+              <div id="settingsSupabaseBadge" style="font-size: 11.5px; padding: 4px 10px; border-radius: 12px; font-weight: 600; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
+                🟢 พร้อมใช้งาน Realtime
+              </div>
+            </div>
+
+            <div class="form-row" style="margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 12px;">Supabase Project URL</label>
+                <input type="text" class="form-input font-mono" id="cfgSupabaseUrl" placeholder="https://your-project.supabase.co" style="font-size: 12.5px;">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 12px;">Supabase Anon Public Key</label>
+                <input type="password" class="form-input font-mono" id="cfgSupabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." style="font-size: 12.5px;">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--border-color);">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary" style="padding: 7px 14px; font-size: 12px;" onclick="SupabaseSync.saveAndConnect()">
+                  <span>💾 บันทึกและเชื่อมต่อ Cloud</span>
+                </button>
+                <button type="button" class="btn btn-secondary" style="padding: 7px 12px; font-size: 12px;" onclick="SupabaseSync.pushAllDataManual()">
+                  <span>⬆️ ซิงค์ข้อมูลขึ้น Cloud ตอนนี้</span>
+                </button>
+                <button type="button" class="btn btn-secondary" style="padding: 7px 12px; font-size: 12px;" onclick="SupabaseSync.pullFreshDataManual()">
+                  <span>⬇️ ดึงข้อมูลล่าสุดจาก Cloud</span>
+                </button>
+              </div>
+              <button type="button" class="btn btn-secondary" style="padding: 7px 12px; font-size: 11.5px;" onclick="SupabaseSync.showSqlSchemaModal()">
+                <span>📋 ดู SQL Schema สร้างตาราง</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Company Bank Accounts Management Card -->
           <div
             style="background: var(--bg-surface-elevated); padding: 18px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--border-color);">
@@ -3433,15 +3488,14 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 2: EXPRESS .SPF & .SDF MULTI-FILE & FOLDER IMPORT MODAL
+       MODAL 2: EXPRESS .TXT, .SPF & .SDF MULTI-FILE & FOLDER IMPORT MODAL
        ========================================================================== -->
   <div class="modal-backdrop" id="sdfImportModal">
-    <div class="modal-dialog modal-dialog-large">
+    <div class="modal-dialog modal-dialog-large" style="max-width: 960px; width: 95vw;">
       <div class="modal-header">
         <div>
-          <div class="modal-title">📥 นำเข้าไฟล์บิลขาย Express (.SPF / .SDF / โฟลเดอร์)</div>
-          <div style="font-size: 12px; color: var(--text-muted);">รองรับไฟล์ .SPF, .SDF, .TXT, .CSV
-            หรือเลือกทั้งโฟลเดอร์ของโปรแกรม Express</div>
+          <div class="modal-title">📥 นำเข้าบิลขาย Express (เลือกทั้งโฟลเดอร์ / ไฟล์ .TXT, .SDF, .SPF)</div>
+          <div style="font-size: 12px; color: var(--text-muted);">รองรับการเลือกทั้งโฟลเดอร์ (เช่น โฟลเดอร์ 27-08-69), ลากโฟลเดอร์มาวาง, หรือเลือกไฟล์หลายไฟล์พร้อมกัน</div>
         </div>
         <button class="modal-close-btn" onclick="SdfImportModal.close()">✕</button>
       </div>
@@ -3449,23 +3503,23 @@
 
         <!-- Dropzone & Upload Action Buttons -->
         <div class="proof-attachment-box" id="sdfDropzone"
-          style="min-height: 140px; padding: 24px; border: 2px dashed var(--primary); cursor: default;">
-          <span style="font-size: 32px; margin-bottom: 8px;">📂</span>
-          <div style="font-size: 15px; font-weight: 700; color: var(--text-primary);">ลากไฟล์ .SPF หรือ .SDF ของ Express
-            มาวางที่นี่</div>
-          <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">หรือเลือกไฟล์หลายไฟล์พร้อมกัน
-            หรือเลือกทั้งโฟลเดอร์ของโปรแกรม Express</div>
+          style="min-height: 150px; padding: 26px; border: 2px dashed var(--primary); cursor: default; transition: all 0.2s ease;">
+          <span style="font-size: 36px; margin-bottom: 8px;">📂</span>
+          <div style="font-size: 16px; font-weight: 700; color: var(--text-primary);">ลากโฟลเดอร์ หรือไฟล์ .TXT / .SDF / .SPF ของ Express มาวางที่นี่</div>
+          <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
+            ระบบจะอ่านไฟล์ภาษาไทย Windows-874 / TIS-620 และแปลงเป็นรายการบิลขาย (IV) อัตโนมัติ
+          </div>
 
           <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-            <label class="btn btn-primary" style="cursor: pointer;">
-              <span>📑 เลือกไฟล์ .SPF / .SDF (หลายไฟล์)</span>
-              <input type="file" id="sdfFilesInput" accept=".spf,.sdf,.txt,.csv" multiple style="display: none;"
-                onchange="SdfImportModal.handleFiles(this.files)">
-            </label>
-            <label class="btn btn-secondary" style="cursor: pointer;">
+            <label class="btn btn-primary" style="cursor: pointer; padding: 9px 18px;">
               <span>📁 เลือกทั้งโฟลเดอร์ Express (Upload Folder)</span>
               <input type="file" id="sdfFolderInput" webkitdirectory directory multiple style="display: none;"
                 onchange="SdfImportModal.handleFolder(this.files)">
+            </label>
+            <label class="btn btn-secondary" style="cursor: pointer; padding: 9px 18px;">
+              <span>📑 เลือกไฟล์ .TXT / .SDF / .SPF (หลายไฟล์)</span>
+              <input type="file" id="sdfFilesInput" accept=".txt,.spf,.sdf,.csv,.prn" multiple style="display: none;"
+                onchange="SdfImportModal.handleFiles(this.files)">
             </label>
           </div>
         </div>
@@ -3473,9 +3527,9 @@
         <!-- Loaded Files Badge List -->
         <div id="sdfFileListContainer" style="display: none; margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 13px; font-weight: 700; color: var(--text-primary);">📂 ไฟล์ที่ตรวจพบ:</span>
+            <span style="font-size: 13px; font-weight: 700; color: var(--text-primary);" id="sdfFileListTitle">📂 ไฟล์ที่ตรวจพบ:</span>
             <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;"
-              onclick="SdfImportModal.reset()">🔄 เลือกไฟล์ใหม่</button>
+              onclick="SdfImportModal.reset()">🔄 เลือกโฟลเดอร์/ไฟล์ใหม่</button>
           </div>
           <div id="sdfUploadedFilesList"
             style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; max-height: 110px; overflow-y: auto;">
@@ -3485,30 +3539,34 @@
         <!-- Unreadable / Error Files Alert Box -->
         <div id="sdfErrorContainer" style="display: none; margin-bottom: 14px; background: rgba(239, 68, 68, 0.1); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 12px 14px;">
           <div style="font-weight: 700; font-size: 13px; color: var(--status-unpaid); display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-            <span>⚠️ ไม่สามารถอ่านข้อมูลบิลขายจากบางไฟล์ได้ (Invalid / Unreadable):</span>
+            <span>⚠️ รายการไฟล์ที่ไม่สามารถนำเข้าได้ (Invalid / Duplicate / Unreadable):</span>
           </div>
-          <div id="sdfErrorList" style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;"></div>
+          <div id="sdfErrorList" style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; max-height: 90px; overflow-y: auto;"></div>
         </div>
 
         <!-- Parsed Invoices Preview -->
         <div id="sdfPreviewContainer" style="display: none;">
           <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 8px 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 10px 14px; background: var(--bg-surface-elevated); border-radius: var(--radius-md); border: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
             <div id="sdfParsedSummary" style="font-size: 13px;"></div>
-            <span class="badge badge-paid">สถานะพร้อมนำเข้า</span>
+            <span class="badge badge-paid">✓ ตรวจสอบข้อมูลครบถ้วนพร้อมนำเข้า</span>
           </div>
 
-          <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+          <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width: 40px; text-align: center;">เลือก</th>
+                  <th style="width: 40px; text-align: center;">
+                    <input type="checkbox" id="sdfSelectAllCheckbox" checked onchange="SdfImportModal.toggleSelectAll(this.checked)" title="เลือกทั้งหมด">
+                  </th>
                   <th>เลขที่ IV</th>
                   <th>วันที่บิล</th>
-                  <th>ชื่อลูกค้า</th>
-                  <th>รถส่งของ</th>
+                  <th>ชื่อร้านค้า/ลูกค้า</th>
+                  <th>โซน/ที่อยู่</th>
+                  <th>สายส่ง / พนักงาน</th>
                   <th style="text-align: right;">ยอดรวมบิล</th>
-                  <th>ที่มาไฟล์</th>
+                  <th style="text-align: center;">สินค้า</th>
+                  <th style="text-align: center;">ดูบิล</th>
                 </tr>
               </thead>
               <tbody id="sdfParsedTableBody"></tbody>
@@ -3747,22 +3805,31 @@
        MODAL: CONTINUOUS FORM DOT-MATRIX INVOICE VIEWER
        ========================================================================== -->
   <div class="modal-backdrop" id="invoiceDocModal">
-    <div class="modal-dialog modal-dialog-large">
+    <div class="modal-dialog modal-dialog-large" style="max-width: 900px; width: 95vw;">
       <div class="modal-header">
         <div>
-          <div class="modal-title">📑 ใบส่งของชั่วคราว / ใบแจ้งหนี้ Express (Continuous Form)</div>
-          <div style="font-size: 12px; color: var(--text-muted);">จำลองแบบฟอร์มกระดาษต่อเนื่องหัวพิมพ์ Dot-Matrix
-            และรายการสินค้า</div>
+          <div class="modal-title">📑 ใบส่งของชั่วคราว / บิลขาย Express</div>
+          <div style="font-size: 12px; color: var(--text-muted);">จำลองแบบฟอร์มกระดาษต่อเนื่องหัวพิมพ์ Dot-Matrix และข้อความต้นฉบับ</div>
         </div>
-        <button class="modal-close-btn" onclick="InvoiceDocModal.close()">✕</button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="view-tabs" style="margin: 0;">
+            <button class="view-tab-btn active" id="btnDocTabContinuous" onclick="InvoiceDocModal.switchMode('continuous')">
+              📑 แบบฟอร์มบิลต่อเนื่อง
+            </button>
+            <button class="view-tab-btn" id="btnDocTabRaw" onclick="InvoiceDocModal.switchMode('raw')">
+              🖥️ ข้อความต้นฉบับ (TXT)
+            </button>
+          </div>
+          <button class="modal-close-btn" onclick="InvoiceDocModal.close()">✕</button>
+        </div>
       </div>
       <div class="modal-body" id="invoiceDocModalBody"
-        style="background: #fffbe6; color: #1e293b; border-radius: var(--radius-md); padding: 18px; font-family: 'Prompt', 'Fira Code', monospace; border: 1px dashed #d97706; box-shadow: inset 0 0 10px rgba(217, 119, 6, 0.08);">
-        <!-- Rendered Continuous Form Dot-Matrix Card -->
+        style="background: #fffbe6; color: #1e293b; border-radius: var(--radius-md); padding: 16px; font-family: 'Prompt', 'Fira Code', monospace; border: 1px dashed #d97706; box-shadow: inset 0 0 10px rgba(217, 119, 6, 0.08); max-height: 75vh; overflow-y: auto;">
+        <!-- Rendered Continuous Form Dot-Matrix Card or Raw Monospace View -->
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="InvoiceDocModal.close()">ปิดหน้าต่าง</button>
-        <button class="btn btn-primary" onclick="window.print()">
+        <button class="btn btn-primary" onclick="InvoiceDocModal.printDoc()">
           <span>🖨️ พิมพ์เอกสารใบส่งของ</span>
         </button>
       </div>
@@ -4114,23 +4181,27 @@
         }
       },
 
-      save(data) {
+      saveLocalOnly(data) {
         if (!data) return;
-        // 1. Always save full state in IndexedDB (Safe from browser quota limits)
         IDBStateStore.set(this.STORAGE_KEY, data);
-
-        // 2. Save in localStorage with automatic quota fallback
         try {
           localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
         } catch (err) {
-          console.warn('LocalStorage quota limit reached, saving sanitized copy & using IndexedDB:', err);
           try {
             this.cleanOldStorage();
             const sanitized = this.sanitizeForLocalStorage(data);
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sanitized));
           } catch (fallbackErr) {
-            console.warn('LocalStorage write skipped, state safely preserved in IndexedDB & memory:', fallbackErr);
+            console.warn('LocalStorage write skipped:', fallbackErr);
           }
+        }
+      },
+
+      save(data) {
+        if (!data) return;
+        this.saveLocalOnly(data);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(data);
         }
       },
 
@@ -4139,7 +4210,352 @@
         this.save(initial);
         App.state = initial;
         App.refreshAllViews();
-        App.showToast('รีเซ็ตข้อมูลตัวอย่างเรียบร้อยแล้ว', 'success');
+        App.showToast('รีเซ็ตข้อมูลเรียบร้อยแล้ว', 'success');
+      }
+    };
+
+    // ==========================================================================
+    // 1.1 SUPABASE CLOUD DATABASE & REALTIME SYNCHRONIZATION ENGINE
+    // ==========================================================================
+    const SUPABASE_DEFAULT_CONFIG = {
+      url: localStorage.getItem('khuckngurn_supabase_url') || '',
+      anonKey: localStorage.getItem('khuckngurn_supabase_key') || '',
+      autoSync: true
+    };
+
+    const SupabaseSync = {
+      client: null,
+      isConnected: false,
+      isSyncing: false,
+      realtimeChannel: null,
+      syncDebounceTimer: null,
+
+      init() {
+        const url = localStorage.getItem('khuckngurn_supabase_url') || SUPABASE_DEFAULT_CONFIG.url || '';
+        const key = localStorage.getItem('khuckngurn_supabase_key') || SUPABASE_DEFAULT_CONFIG.anonKey || '';
+
+        const urlInput = document.getElementById('cfgSupabaseUrl');
+        const keyInput = document.getElementById('cfgSupabaseKey');
+        if (urlInput && url) urlInput.value = url;
+        if (keyInput && key) keyInput.value = key;
+
+        if (url && key && window.supabase) {
+          try {
+            this.client = window.supabase.createClient(url, key);
+            this.testAndConnect(false);
+          } catch (e) {
+            console.error('Supabase init error:', e);
+            this.updateStatusBadge('error', 'ข้อผิดพลาด Supabase');
+          }
+        } else {
+          this.updateStatusBadge('offline', 'ยังไม่เชื่อมต่อ Cloud');
+        }
+      },
+
+      updateStatusBadge(status, text) {
+        const badge = document.getElementById('cloudSyncStatusBadge');
+        const dot = document.getElementById('cloudSyncDot');
+        const txt = document.getElementById('cloudSyncStatusText');
+        const setBadge = document.getElementById('settingsSupabaseBadge');
+
+        if (!badge || !dot || !txt) return;
+
+        if (status === 'connected') {
+          badge.style.background = 'rgba(16, 185, 129, 0.15)';
+          badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+          badge.style.color = '#34d399';
+          dot.style.background = '#10b981';
+          txt.innerText = 'Supabase Realtime (Online)';
+          if (setBadge) {
+            setBadge.innerHTML = '🟢 เชื่อมต่อ Cloud สำเร็จ (Realtime)';
+            setBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+            setBadge.style.color = '#34d399';
+          }
+        } else if (status === 'syncing') {
+          badge.style.background = 'rgba(59, 130, 246, 0.15)';
+          badge.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+          badge.style.color = '#60a5fa';
+          dot.style.background = '#3b82f6';
+          txt.innerText = 'กำลังซิงค์...';
+        } else if (status === 'error') {
+          badge.style.background = 'rgba(239, 68, 68, 0.15)';
+          badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+          badge.style.color = '#f87171';
+          dot.style.background = '#ef4444';
+          txt.innerText = 'Cloud ผิดพลาด';
+          if (setBadge) {
+            setBadge.innerHTML = '🔴 เชื่อมต่อไม่สำเร็จ';
+            setBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+            setBadge.style.color = '#f87171';
+          }
+        } else {
+          badge.style.background = 'rgba(148, 163, 184, 0.12)';
+          badge.style.borderColor = 'rgba(148, 163, 184, 0.25)';
+          badge.style.color = '#94a3b8';
+          dot.style.background = '#94a3b8';
+          txt.innerText = 'Cloud (Offline / Local)';
+          if (setBadge) {
+            setBadge.innerHTML = '⚪ โหมดเครื่องเดียว (Local Storage)';
+            setBadge.style.background = 'rgba(148, 163, 184, 0.12)';
+            setBadge.style.color = '#94a3b8';
+          }
+        }
+      },
+
+      async testAndConnect(showToast = true) {
+        if (!this.client) {
+          this.updateStatusBadge('offline');
+          return;
+        }
+        this.updateStatusBadge('syncing');
+        try {
+          // Test select from customers or app_state_backup
+          const { error } = await this.client.from('app_state_backup').select('id').limit(1);
+          if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+            console.warn('Supabase test query warning:', error);
+          }
+          this.isConnected = true;
+          this.updateStatusBadge('connected');
+          if (showToast) App.showToast('🟢 เชื่อมต่อ Supabase Cloud สำเร็จ (Realtime Sync พร้อมใช้งาน)', 'success');
+
+          // Pull fresh cloud data & setup realtime subscription
+          await this.pullFreshData(false);
+          this.subscribeRealtime();
+        } catch (e) {
+          console.error('Supabase connection failed:', e);
+          this.isConnected = false;
+          this.updateStatusBadge('error');
+          if (showToast) App.showToast('❌ ไม่สามารถเชื่อมต่อ Supabase ได้ กรุณาตรวจสอบ URL / Key', 'error');
+        }
+      },
+
+      async saveAndConnect() {
+        const url = (document.getElementById('cfgSupabaseUrl')?.value || '').trim();
+        const key = (document.getElementById('cfgSupabaseKey')?.value || '').trim();
+
+        if (!url || !key) {
+          App.showToast('กรุณากรอกทั้ง Supabase URL และ Anon Key', 'warning');
+          return;
+        }
+
+        localStorage.setItem('khuckngurn_supabase_url', url);
+        localStorage.setItem('khuckngurn_supabase_key', key);
+
+        if (!window.supabase) {
+          App.showToast('ไม่พบไลบรารี Supabase JS กรุณารีเฟรชหน้าเว็บ', 'error');
+          return;
+        }
+
+        this.client = window.supabase.createClient(url, key);
+        await this.testAndConnect(true);
+      },
+
+      async pushAllData(state, silent = true) {
+        if (!this.client || !this.isConnected || !state) return;
+        try {
+          const snapshot = {
+            id: 'main_state',
+            state_data: {
+              customers: state.customers || [],
+              invoices: state.invoices || [],
+              payments: state.payments || [],
+              payment_allocations: state.payment_allocations || [],
+              companyBankAccounts: state.companyBankAccounts || [],
+              audit_logs: state.audit_logs || [],
+              updated_at: new Date().toISOString()
+            },
+            updated_at: new Date().toISOString()
+          };
+
+          // 1. Push state snapshot
+          await this.client.from('app_state_backup').upsert(snapshot);
+
+          // 2. Push tables if created
+          if (state.customers && state.customers.length > 0) {
+            await this.client.from('customers').upsert(state.customers.map(c => ({
+              id: c.id,
+              code: c.code,
+              name: c.name,
+              phone: c.phone || '',
+              address: c.address || '',
+              updated_at: new Date().toISOString()
+            }))).catch(() => {});
+          }
+
+          if (state.invoices && state.invoices.length > 0) {
+            await this.client.from('invoices').upsert(state.invoices.map(inv => ({
+              id: inv.id,
+              iv_number: inv.iv_number,
+              doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
+              customer_id: inv.customer_id,
+              invoice_date: inv.invoice_date || null,
+              due_date: inv.due_date || null,
+              delivery_vehicle: inv.delivery_vehicle,
+              total_amount: inv.total_amount,
+              paid_amount: inv.paid_amount,
+              outstanding_amount: inv.outstanding_amount,
+              status: inv.status,
+              items: inv.items || [],
+              amount_text: inv.amount_text || '',
+              raw_content: inv.raw_content || '',
+              source_file: inv.source_file || '',
+              slip_data: inv.slip_data || null,
+              approved_by: inv.approved_by || null,
+              approved_at: inv.approved_at || null,
+              updated_at: new Date().toISOString()
+            }))).catch(() => {});
+          }
+
+          if (state.payments && state.payments.length > 0) {
+            await this.client.from('payments').upsert(state.payments.map(p => ({
+              id: p.id,
+              payment_number: p.payment_number,
+              customer_id: p.customer_id,
+              payment_date: p.payment_date || null,
+              payment_type: p.payment_type,
+              amount: p.amount,
+              matched_amount: p.matched_amount,
+              unmatched_amount: p.unmatched_amount,
+              reference_number: p.reference_number || '',
+              bank_account: p.bank_account || '',
+              note: p.note || '',
+              slip_data: p.slip_data || null,
+              matched_invoices: p.matched_invoices || [],
+              updated_at: new Date().toISOString()
+            }))).catch(() => {});
+          }
+
+          if (!silent) {
+            App.showToast('⬆️ ซิงค์ข้อมูลทั้งหมดขึ้น Supabase Cloud สำเร็จ', 'success');
+          }
+        } catch (err) {
+          console.error('Supabase push error:', err);
+          if (!silent) App.showToast('เกิดข้อผิดพลาดในการซิงค์ขึ้น Cloud', 'error');
+        }
+      },
+
+      debouncedPush(state) {
+        if (!this.client || !this.isConnected) return;
+        if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
+        this.syncDebounceTimer = setTimeout(() => {
+          this.pushAllData(state, true);
+        }, 1200);
+      },
+
+      async pullFreshData(showToast = true) {
+        if (!this.client || !this.isConnected) return;
+        this.updateStatusBadge('syncing');
+        try {
+          const { data, error } = await this.client.from('app_state_backup').select('state_data').eq('id', 'main_state').single();
+          if (data && data.state_data) {
+            const cloudState = data.state_data;
+            let merged = false;
+
+            if (Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0) {
+              const currentInvMap = new Map((App.state.invoices || []).map(i => [i.iv_number, i]));
+              cloudState.invoices.forEach(cinv => {
+                if (!currentInvMap.has(cinv.iv_number)) {
+                  App.state.invoices.unshift(cinv);
+                  merged = true;
+                } else {
+                  const existing = currentInvMap.get(cinv.iv_number);
+                  if (existing.status !== cinv.status || existing.paid_amount !== cinv.paid_amount || cinv.approved_by) {
+                    Object.assign(existing, cinv);
+                    merged = true;
+                  }
+                }
+              });
+            }
+
+            if (Array.isArray(cloudState.customers) && cloudState.customers.length > 0) {
+              const custMap = new Map((App.state.customers || []).map(c => [c.id, c]));
+              cloudState.customers.forEach(ccust => {
+                if (!custMap.has(ccust.id)) {
+                  App.state.customers.push(ccust);
+                  merged = true;
+                }
+              });
+            }
+
+            if (Array.isArray(cloudState.payments) && cloudState.payments.length > 0) {
+              const payMap = new Map((App.state.payments || []).map(p => [p.payment_number || p.id, p]));
+              cloudState.payments.forEach(cpay => {
+                const key = cpay.payment_number || cpay.id;
+                if (!payMap.has(key)) {
+                  App.state.payments.unshift(cpay);
+                  merged = true;
+                }
+              });
+            }
+
+            if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
+              if (!App.state.companyBankAccounts || App.state.companyBankAccounts.length === 0) {
+                App.state.companyBankAccounts = cloudState.companyBankAccounts;
+                merged = true;
+              }
+            }
+
+            if (Array.isArray(cloudState.audit_logs) && cloudState.audit_logs.length > 0) {
+              const logMap = new Set((App.state.audit_logs || []).map(l => l.id));
+              cloudState.audit_logs.forEach(clog => {
+                if (!logMap.has(clog.id)) {
+                  App.state.audit_logs.unshift(clog);
+                  merged = true;
+                }
+              });
+            }
+
+            if (merged) {
+              DataManager.saveLocalOnly(App.state);
+              App.refreshAllViews();
+              if (showToast) App.showToast('📥 ได้รับข้อมูลอัปเดตแบบ Realtime จาก Supabase Cloud', 'info');
+            }
+          }
+          this.updateStatusBadge('connected');
+        } catch (err) {
+          console.warn('Pull fresh data note:', err);
+          this.updateStatusBadge('connected');
+        }
+      },
+
+      subscribeRealtime() {
+        if (!this.client || !this.isConnected) return;
+        if (this.realtimeChannel) {
+          try { this.client.removeChannel(this.realtimeChannel); } catch (_) {}
+        }
+
+        try {
+          this.realtimeChannel = this.client.channel('khuckngurn-flow-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state_backup' }, (payload) => {
+              console.log('Realtime update received (app_state_backup):', payload);
+              this.pullFreshData(true);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
+              console.log('Realtime invoice event:', payload);
+              this.pullFreshData(true);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, (payload) => {
+              console.log('Realtime payment event:', payload);
+              this.pullFreshData(true);
+            })
+            .subscribe((status) => {
+              console.log('Supabase Realtime Channel status:', status);
+            });
+        } catch (e) {
+          console.warn('Realtime subscription error:', e);
+        }
+      },
+
+      pushAllDataManual() {
+        this.pushAllData(App.state, false);
+      },
+
+      pullFreshDataManual() {
+        this.pullFreshData(true);
+      },
+
+      showSqlSchemaModal() {
+        alert('ระบบสร้างไฟล์ supabase_schema.sql ไว้ในโฟลเดอร์โปรเจกต์แล้ว สามารถคัดลอกไปรันใน Supabase -> SQL Editor ได้ทันที');
       }
     };
 
@@ -4272,103 +4688,198 @@
       }
     };
 
-    // 2.1 INVOICE CONTINUOUS FORM DOT-MATRIX MODAL
+    // 2.1 INVOICE CONTINUOUS FORM & RAW TXT DOT-MATRIX MODAL
     const InvoiceDocModal = {
-      open(invoiceId) {
-        const inv = App.state.invoices.find(i => i.id === invoiceId || i.iv_number === invoiceId);
-        if (!inv) return;
-        const cust = App.state.customers.find(c => c.id === inv.customer_id) || { name: 'ลูกค้าทั่วไป', code: '-', phone: '-', address: '-' };
-        const modal = document.getElementById('invoiceDocModal');
-        const body = document.getElementById('invoiceDocModalBody');
+      currentInv: null,
+      currentCust: null,
+      viewMode: 'continuous', // 'continuous' or 'raw'
 
-        const items = inv.items || [
-          { no: 1, name: 'สินค้าอุปโภคบริโภค / วัตถุดิบคละรายการ', quantity: 1, unit: 'ชุด', unit_price: inv.total_amount, total_price: inv.total_amount }
+      open(invoiceOrId) {
+        let inv = null;
+        if (typeof invoiceOrId === 'object' && invoiceOrId !== null) {
+          inv = invoiceOrId;
+        } else {
+          inv = App.state.invoices.find(i => i.id === invoiceOrId || i.iv_number === invoiceOrId);
+        }
+        if (!inv) return;
+        this.currentInv = inv;
+
+        let cust = null;
+        if (inv.customer_id) {
+          cust = App.state.customers.find(c => c.id === inv.customer_id);
+        }
+        if (!cust) {
+          cust = {
+            name: inv.customer_name || 'ลูกค้าทั่วไป',
+            code: inv.customer_code || '-',
+            phone: inv.customer_phone || '-',
+            address: inv.customer_address || '-'
+          };
+        }
+        this.currentCust = cust;
+
+        this.switchMode(this.viewMode || 'continuous');
+        document.getElementById('invoiceDocModal')?.classList.add('active');
+      },
+
+      openPreview(tempIndex) {
+        if (SdfImportModal.parsedInvoices && SdfImportModal.parsedInvoices[tempIndex]) {
+          const tempInv = SdfImportModal.parsedInvoices[tempIndex];
+          this.open(tempInv);
+        }
+      },
+
+      switchMode(mode) {
+        this.viewMode = mode;
+        const btnCont = document.getElementById('btnDocTabContinuous');
+        const btnRaw = document.getElementById('btnDocTabRaw');
+        if (btnCont) btnCont.classList.toggle('active', mode === 'continuous');
+        if (btnRaw) btnRaw.classList.toggle('active', mode === 'raw');
+
+        const body = document.getElementById('invoiceDocModalBody');
+        if (!body || !this.currentInv) return;
+
+        const inv = this.currentInv;
+        const cust = this.currentCust || {
+          name: inv.customer_name || '-',
+          code: inv.customer_code || '-',
+          phone: inv.customer_phone || '-',
+          address: inv.customer_address || '-'
+        };
+        const items = inv.items && inv.items.length > 0 ? inv.items : [
+          { no: 1, name: 'สินค้าตามบิลส่งของ (' + (inv.iv_number || '') + ')', quantity: 1, unit: 'บิล', unit_price: inv.total_amount, total_price: inv.total_amount }
         ];
 
+        if (mode === 'raw') {
+          // Terminal Monospace Raw View (matches the user's screenshot exactly!)
+          let rawDisplay = inv.raw_content;
+          if (!rawDisplay) {
+            const padR = (s, len) => String(s || '').padEnd(len, ' ');
+            const padL = (s, len) => String(s || '').padStart(len, ' ');
+            const lines = [];
+            lines.push(`"  ${inv.doc_type || 'ใบส่งของชั่วคราว'}"`);
+            lines.push(`"${padR(cust.name || '', 40)}เลขที่ใบส่งของ ${inv.iv_number || ''}"`);
+            lines.push(`"${padR(cust.address || '', 40)}วันที่            ${inv.invoice_date || ''}"`);
+            lines.push(`"${padR(cust.phone || '', 40)}พนักงานขาย   ${inv.delivery_vehicle || ''}"`);
+            lines.push(`"€…………‰…………………………………………………………………………………………………………………‰…………………………………………‰……………………………‰…………………………………… "`);
+            lines.push(`"„ No.„           รหัสสินค้า/รายละเอียด           „     จำนวน      „   หน่วยละ „   จำนวนเงิน  „"`);
+            lines.push(`"†…………Š…………………………………………………………………………………………………………………Š…………………………………………Š……………………………Š……………………………………‡"`);
+            items.forEach(it => {
+              const noStr = padL(it.no || 1, 4);
+              const nameStr = padR(it.name || '', 36);
+              const qtyStr = padL((Number(it.quantity) || 1).toFixed(2) + ' ' + (it.unit || 'ชิ้น'), 18);
+              const priceStr = padL(App.formatCurrency(it.unit_price || 0), 12);
+              const totalStr = padL(App.formatCurrency(it.total_price || (it.quantity * it.unit_price) || 0), 14);
+              lines.push(`"${noStr}   ${nameStr}${qtyStr}${priceStr}${totalStr}"`);
+            });
+            lines.push(`"†…………ˆ…………………………………………………………………………………………………………………ˆ…………………………………………ˆ……………………………Š……………………………………‡"`);
+            const bahtText = inv.amount_text ? `(${inv.amount_text})` : '';
+            lines.push(`"„${padR(bahtText, 44)}จำนวนเงินรวมทั้งสิ้น „${padL(App.formatCurrency(inv.total_amount), 14)} „"`);
+            lines.push(`"‚……………………………………………………………………………………………………………………………………………………………………………………………………………ˆ……………………………………ƒ"`);
+            rawDisplay = lines.join('\n');
+          }
+
+          body.innerHTML = `
+            <div style="background: #090d16; color: #f8fafc; border-radius: 8px; padding: 18px; font-family: 'Fira Code', 'Courier New', monospace; font-size: 12.5px; line-height: 1.6; overflow-x: auto; white-space: pre; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 12px; color: var(--text-muted); font-size: 11.5px;">
+                <span>🖨️ ต้นฉบับ Express Text Spool (Windows-874 / TIS-620) • ${inv.iv_number}</span>
+                <span class="badge badge-doc">${inv.source_file || inv.iv_number + '.txt'}</span>
+              </div>
+              <pre style="margin: 0; font-family: inherit; color: #38bdf8; font-size: 12.5px; line-height: 1.55;">${App.escapeHtml(rawDisplay)}</pre>
+            </div>
+          `;
+          return;
+        }
+
+        // Continuous Form View (Yellowish Dot-Matrix Paper)
         body.innerHTML = `
-          <div style="border: 2px dashed #b45309; padding: 16px; background: #fefce8; border-radius: 4px; font-family: 'Courier New', Courier, monospace, 'Prompt';">
+          <div id="printableContinuousDoc" style="border: 2px dashed #b45309; padding: 22px; background: #fefce8; border-radius: 6px; font-family: 'Prompt', 'Courier New', Courier, monospace; color: #1e293b; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             
             <!-- Continuous Form Header -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #b45309; padding-bottom: 10px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #b45309; padding-bottom: 12px; margin-bottom: 14px;">
               <div>
-                <div style="font-size: 17px; font-weight: 800; color: #78350f;">บริษัท กวักเงิน Flow จำกัด (ชัยเฮง ตรานางกวัก)</div>
-                <div style="font-size: 11.5px; color: #92400e;">124/5 ถ.พระราม 2 แสมดำ บางขุนเทียน กทม. 10150 • โทร 02-415-8899</div>
-                <div style="font-size: 12.5px; font-weight: 700; color: #b45309; margin-top: 4px;">*** ใบส่งของชั่วคราว / ใบแจ้งหนี้ (DELIVERY NOTE / INVOICE) ***</div>
+                <div style="font-size: 18px; font-weight: 800; color: #78350f;">บริษัท กวักเงิน Flow จำกัด (ชัยเฮง ตรานางกวัก)</div>
+                <div style="font-size: 11.5px; color: #92400e; margin-top: 2px;">124/5 ถ.พระราม 2 แสมดำ บางขุนเทียน กทม. 10150 • โทร 02-415-8899</div>
+                <div style="font-size: 13.5px; font-weight: 700; color: #b45309; margin-top: 6px;">*** ${inv.doc_type || 'ใบส่งของชั่วคราว'} (DELIVERY NOTE / INVOICE) ***</div>
               </div>
-              <div style="text-align: right; font-size: 11.5px;">
-                <div>เลขที่บิล: <strong style="font-size: 15px; color: #b45309;">${inv.iv_number}</strong></div>
+              <div style="text-align: right; font-size: 12px;">
+                <div>เลขที่บิล: <strong style="font-size: 16px; color: #b45309;" class="font-mono">${inv.iv_number}</strong></div>
                 <div>วันที่: <strong>${inv.invoice_date}</strong></div>
-                <div>ครบกำหนด: <strong>${inv.due_date || '-'}</strong></div>
+                <div>ครบกำหนด: <strong>${inv.due_date || inv.invoice_date || '-'}</strong></div>
               </div>
             </div>
 
             <!-- Customer & Vehicle Info Box -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; background: rgba(254, 243, 199, 0.6); padding: 8px 10px; border: 1px solid #fde68a; border-radius: 4px; margin-bottom: 12px; font-size: 12px;">
+            <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 12px; background: rgba(254, 243, 199, 0.7); padding: 10px 14px; border: 1px solid #fde68a; border-radius: 4px; margin-bottom: 14px; font-size: 12.5px;">
               <div>
-                <div><strong>รหัสลูกค้า:</strong> ${cust.code} | <strong>ชื่อลูกค้า:</strong> ${cust.name}</div>
-                <div><strong>ที่อยู่:</strong> ${cust.address || '-'} | <strong>โทร:</strong> ${cust.phone || '-'}</div>
+                <div><strong>รหัสลูกค้า:</strong> <span class="font-mono">${cust.code || '-'}</span> | <strong>ชื่อลูกค้า/ร้านค้า:</strong> <span style="font-weight: 700; color: #78350f;">${cust.name || inv.customer_name}</span></div>
+                <div style="margin-top: 3px;"><strong>ที่อยู่/โซน:</strong> ${cust.address || inv.customer_address || '-'} | <strong>โทร:</strong> <span class="font-mono">${cust.phone || inv.customer_phone || '-'}</span></div>
               </div>
               <div>
-                <div><strong>สายส่ง / รถ:</strong> <span style="font-weight: 700; color: #b45309;">${inv.delivery_vehicle || 'ไม่ระบุ'}</span></div>
-                <div><strong>สถานะชำระ:</strong> ${inv.status}</div>
+                <div><strong>สายส่ง / พนักงานขาย:</strong> <span style="font-weight: 700; color: #b45309;">${inv.delivery_vehicle || '80-9549 (รถส่งของ)'}</span></div>
+                <div style="margin-top: 3px;"><strong>สถานะชำระ:</strong> <span class="badge badge-${(inv.status || 'UNPAID').toLowerCase()}" style="font-size: 11px;">${inv.status || 'UNPAID'}</span></div>
               </div>
             </div>
 
-            <!-- Dot-Matrix Table -->
-            <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 12px;">
+            <!-- Dot-Matrix Items Table -->
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px;">
               <thead>
-                <tr style="border-top: 1px solid #b45309; border-bottom: 1px solid #b45309; background: #fef3c7;">
-                  <th style="padding: 4px 6px; text-align: center; width: 35px;">ลำดับ</th>
-                  <th style="padding: 4px 6px; text-align: left;">รหัส / รายละเอียดสินค้า</th>
-                  <th style="padding: 4px 6px; text-align: right; width: 70px;">จำนวน</th>
-                  <th style="padding: 4px 6px; text-align: center; width: 50px;">หน่วย</th>
-                  <th style="padding: 4px 6px; text-align: right; width: 90px;">หน่วยละ</th>
-                  <th style="padding: 4px 6px; text-align: right; width: 110px;">จำนวนเงิน (บาท)</th>
+                <tr style="border-top: 1.5px solid #b45309; border-bottom: 1.5px solid #b45309; background: #fef3c7;">
+                  <th style="padding: 6px 8px; text-align: center; width: 45px;">ลำดับ</th>
+                  <th style="padding: 6px 8px; text-align: left;">รหัสสินค้า / รายละเอียด</th>
+                  <th style="padding: 6px 8px; text-align: right; width: 85px;">จำนวน</th>
+                  <th style="padding: 6px 8px; text-align: center; width: 75px;">หน่วย</th>
+                  <th style="padding: 6px 8px; text-align: right; width: 100px;">หน่วยละ</th>
+                  <th style="padding: 6px 8px; text-align: right; width: 125px;">จำนวนเงิน (บาท)</th>
                 </tr>
               </thead>
               <tbody>
                 ${items.map((it, idx) => `
                   <tr style="border-bottom: 1px dotted #fde68a;">
-                    <td style="padding: 4px 6px; text-align: center;">${it.no || idx + 1}</td>
-                    <td style="padding: 4px 6px;">${it.name}</td>
-                    <td style="padding: 4px 6px; text-align: right;">${(Number(it.quantity) || 1).toLocaleString()}</td>
-                    <td style="padding: 4px 6px; text-align: center;">${it.unit || 'ชิ้น'}</td>
-                    <td style="padding: 4px 6px; text-align: right;">${App.formatCurrency(it.unit_price || it.total_price)}</td>
-                    <td style="padding: 4px 6px; text-align: right; font-weight: 700;">${App.formatCurrency(it.total_price || (it.quantity * it.unit_price))}</td>
+                    <td style="padding: 6px 8px; text-align: center;">${it.no || idx + 1}</td>
+                    <td style="padding: 6px 8px; font-weight: 600;">${it.name}</td>
+                    <td style="padding: 6px 8px; text-align: right;" class="font-mono">${(Number(it.quantity) || 1).toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 6px 8px; text-align: center;">${it.unit || 'ชิ้น'}</td>
+                    <td style="padding: 6px 8px; text-align: right;" class="font-mono">${App.formatCurrency(it.unit_price || 0)}</td>
+                    <td style="padding: 6px 8px; text-align: right; font-weight: 700;" class="font-mono">${App.formatCurrency(it.total_price || (it.quantity * it.unit_price) || 0)}</td>
                   </tr>
                 `).join('')}
               </tbody>
               <tfoot>
                 <tr style="border-top: 2px solid #b45309; font-weight: 700;">
-                  <td colspan="4" style="padding: 6px 8px; font-size: 11px; color: #78350f;">
+                  <td colspan="4" style="padding: 8px 10px; font-size: 12px; color: #78350f;">
                     ${inv.amount_text ? `(${inv.amount_text})` : ''}
                   </td>
-                  <td style="padding: 6px 8px; text-align: right;">ยอดรวมสุทธิ:</td>
-                  <td style="padding: 6px 8px; text-align: right; font-size: 13.5px; color: #b45309;">${App.formatCurrency(inv.total_amount)}</td>
+                  <td style="padding: 8px 10px; text-align: right; font-size: 13px;">จำนวนเงินรวมทั้งสิ้น:</td>
+                  <td style="padding: 8px 10px; text-align: right; font-size: 15px; color: #b45309;" class="font-mono font-weight: 800;">${App.formatCurrency(inv.total_amount)}</td>
                 </tr>
               </tfoot>
             </table>
 
             <!-- Signatures in Dot-Matrix style -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center; margin-top: 16px; font-size: 11px; border-top: 1px dashed #b45309; padding-top: 10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: center; margin-top: 18px; font-size: 11.5px; border-top: 1px dashed #b45309; padding-top: 14px;">
               <div>
-                <div style="margin-bottom: 22px;">ผู้รับสินค้า / ลูกค้า</div>
+                <div style="margin-bottom: 24px;">ผู้รับสินค้า / ลูกค้า</div>
                 <div>(_____________________________) วันที่: ____/____/________</div>
               </div>
               <div>
-                <div style="margin-bottom: 22px;">ผู้ส่งสินค้า / พนักงานขายประจำรถ</div>
+                <div style="margin-bottom: 24px;">ผู้ส่งสินค้า / พนักงานขายประจำรถ</div>
                 <div>(_____________________________) วันที่: ____/____/________</div>
               </div>
             </div>
 
           </div>
         `;
-
-        modal.classList.add('active');
       },
+
       close() {
         document.getElementById('invoiceDocModal')?.classList.remove('active');
       },
+
+      printDoc() {
+        window.print();
+      },
+
       printCurrentTable(tableBodyId, title = 'รายงานสรุปหนี้ค้างชำระและการอนุมัติบิล') {
         window.print();
       }
@@ -5186,6 +5697,11 @@
         if (typeof AuthModal !== 'undefined' && AuthModal.init) {
           AuthModal.init();
         }
+
+        // Initialize Supabase Cloud Database & Realtime Sync
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.init) {
+          SupabaseSync.init();
+        }
       },
 
       updateUserRoleUI() {
@@ -5298,13 +5814,23 @@
       },
 
       saveSettings() {
-        const geminiKey = document.getElementById('cfgGeminiKey').value.trim();
-        const shouldSave = document.getElementById('cfgSaveApiKeyCheckbox').checked;
+        const geminiKey = document.getElementById('cfgGeminiKey')?.value.trim() || '';
+        const shouldSave = document.getElementById('cfgSaveApiKeyCheckbox')?.checked;
 
         if (shouldSave && geminiKey) {
           localStorage.setItem('khuckngurn_gemini_key', geminiKey);
         } else if (!shouldSave) {
           localStorage.removeItem('khuckngurn_gemini_key');
+        }
+
+        const supabaseUrl = document.getElementById('cfgSupabaseUrl')?.value.trim() || '';
+        const supabaseKey = document.getElementById('cfgSupabaseKey')?.value.trim() || '';
+        if (supabaseUrl && supabaseKey) {
+          localStorage.setItem('khuckngurn_supabase_url', supabaseUrl);
+          localStorage.setItem('khuckngurn_supabase_key', supabaseKey);
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.init) {
+            SupabaseSync.init();
+          }
         }
 
         this.state.geminiApiKey = geminiKey;
@@ -8382,18 +8908,18 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
       }
     };
 
-    // 12. EXPRESS .SDF & .SPF MULTI-FILE & FOLDER IMPORT CONTROLLER
+    // 12. EXPRESS .TXT, .SDF & .SPF MULTI-FILE & FOLDER IMPORT CONTROLLER
     const SdfImportModal = {
       filesList: [],
       parsedInvoices: [],
 
       open() {
         this.reset();
-        document.getElementById('sdfImportModal').classList.add('active');
+        document.getElementById('sdfImportModal')?.classList.add('active');
       },
 
       close() {
-        document.getElementById('sdfImportModal').classList.remove('active');
+        document.getElementById('sdfImportModal')?.classList.remove('active');
       },
 
       reset() {
@@ -8403,12 +8929,16 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         if (filesInput) filesInput.value = '';
         const folderInput = document.getElementById('sdfFolderInput');
         if (folderInput) folderInput.value = '';
-        document.getElementById('sdfFileListContainer').style.display = 'none';
-        document.getElementById('sdfPreviewContainer').style.display = 'none';
+        const fileListContainer = document.getElementById('sdfFileListContainer');
+        if (fileListContainer) fileListContainer.style.display = 'none';
+        const previewContainer = document.getElementById('sdfPreviewContainer');
+        if (previewContainer) previewContainer.style.display = 'none';
         const errorContainer = document.getElementById('sdfErrorContainer');
         if (errorContainer) errorContainer.style.display = 'none';
-        document.getElementById('sdfDropzone').style.display = 'block';
-        document.getElementById('btnConfirmSdfImport').style.display = 'none';
+        const dropzone = document.getElementById('sdfDropzone');
+        if (dropzone) dropzone.style.display = 'block';
+        const btnConfirm = document.getElementById('btnConfirmSdfImport');
+        if (btnConfirm) btnConfirm.style.display = 'none';
       },
 
       initDropzone() {
@@ -8417,6 +8947,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         ['dragenter', 'dragover'].forEach(eventName => {
           dropzone.addEventListener(eventName, (e) => {
             e.preventDefault();
+            e.stopPropagation();
             dropzone.style.borderColor = 'var(--accent-blue)';
             dropzone.style.background = 'var(--bg-surface-elevated)';
           }, false);
@@ -8424,68 +8955,122 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         ['dragleave', 'drop'].forEach(eventName => {
           dropzone.addEventListener(eventName, (e) => {
             e.preventDefault();
+            e.stopPropagation();
             dropzone.style.borderColor = 'var(--primary)';
             dropzone.style.background = 'transparent';
           }, false);
         });
-        dropzone.addEventListener('drop', (e) => {
+        dropzone.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const dt = e.dataTransfer;
-          if (dt && dt.files && dt.files.length > 0) {
-            SdfImportModal.handleFiles(dt.files);
+          if (dt) {
+            const files = await this.getFilesFromDataTransfer(dt);
+            if (files && files.length > 0) {
+              this.handleFiles(files);
+            }
           }
         }, false);
       },
 
-      handleFiles(files) {
-        if (!files || files.length === 0) return;
-        this.processUploadedFiles(Array.from(files));
+      async getFilesFromDataTransfer(dataTransfer) {
+        const files = [];
+        const items = dataTransfer.items;
+        if (items && items.length > 0 && items[0].webkitGetAsEntry) {
+          const queue = [];
+          for (let i = 0; i < items.length; i++) {
+            const entry = items[i].webkitGetAsEntry();
+            if (entry) queue.push(entry);
+          }
+          while (queue.length > 0) {
+            const entry = queue.shift();
+            if (entry.isFile) {
+              try {
+                const file = await new Promise((res, rej) => entry.file(res, rej));
+                files.push(file);
+              } catch (_) {}
+            } else if (entry.isDirectory) {
+              try {
+                const dirReader = entry.createReader();
+                const entries = await new Promise((res, rej) => {
+                  const allEntries = [];
+                  function readEntries() {
+                    dirReader.readEntries((results) => {
+                      if (!results || results.length === 0) {
+                        res(allEntries);
+                      } else {
+                        allEntries.push(...results);
+                        readEntries();
+                      }
+                    }, rej);
+                  }
+                  readEntries();
+                });
+                queue.push(...entries);
+              } catch (_) {}
+            }
+          }
+        } else if (dataTransfer.files && dataTransfer.files.length > 0) {
+          files.push(...Array.from(dataTransfer.files));
+        }
+        return files;
       },
 
-      handleFolder(files) {
+      handleFiles(files) {
         if (!files || files.length === 0) return;
-        const filtered = Array.from(files).filter(f =>
-          f.name.toLowerCase().endsWith('.spf') ||
-          f.name.toLowerCase().endsWith('.sdf') ||
-          f.name.toLowerCase().endsWith('.txt') ||
-          f.name.toLowerCase().endsWith('.csv') ||
-          f.name.toLowerCase().endsWith('.prn')
-        );
+        const validExtensions = ['.txt', '.sdf', '.spf', '.csv', '.prn', '.dat'];
+        const filtered = Array.from(files).filter(f => {
+          const name = f.name.toLowerCase();
+          return validExtensions.some(ext => name.endsWith(ext));
+        });
         if (filtered.length === 0) {
-          App.showToast('ไม่พบไฟล์ .SPF, .SDF หรือ .TXT ในโฟลเดอร์ที่เลือก', 'warning');
+          App.showToast('ไม่พบไฟล์บิลขาย Express (.TXT, .SDF, .SPF) ในรายการที่เลือก', 'warning');
           return;
         }
         this.processUploadedFiles(filtered);
       },
 
+      handleFolder(files) {
+        if (!files || files.length === 0) return;
+        this.handleFiles(files);
+      },
+
       async processUploadedFiles(files) {
         this.filesList = files;
         const fileListEl = document.getElementById('sdfUploadedFilesList');
+        const fileListTitle = document.getElementById('sdfFileListTitle');
         const fileListContainer = document.getElementById('sdfFileListContainer');
         const previewContainer = document.getElementById('sdfPreviewContainer');
         const dropzone = document.getElementById('sdfDropzone');
         const errorContainer = document.getElementById('sdfErrorContainer');
         const errorListEl = document.getElementById('sdfErrorList');
 
-        dropzone.style.display = 'none';
-        fileListContainer.style.display = 'block';
-        previewContainer.style.display = 'block';
+        if (dropzone) dropzone.style.display = 'none';
+        if (fileListContainer) fileListContainer.style.display = 'block';
+        if (previewContainer) previewContainer.style.display = 'block';
         if (errorContainer) errorContainer.style.display = 'none';
 
-        fileListEl.innerHTML = files.map(f => `
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-size: 12.5px;">
-            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              <span>${f.name.toLowerCase().endsWith('.spf') ? '🖨️' : '📑'}</span>
-              <span class="font-mono" style="font-weight: 600;">${f.name}</span>
+        if (fileListTitle) {
+          fileListTitle.innerHTML = `📂 ไฟล์ที่ตรวจพบ (${files.length} ไฟล์):`;
+        }
+
+        if (fileListEl) {
+          fileListEl.innerHTML = files.map(f => `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-size: 12px;">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <span>${f.name.toLowerCase().endsWith('.spf') ? '🖨️' : '📑'}</span>
+                <span class="font-mono" style="font-weight: 600;">${f.name}</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 11px; flex-shrink: 0; margin-left: 8px;">
+                ${(f.size / 1024).toFixed(1)} KB
+              </div>
             </div>
-            <div style="color: var(--text-muted); font-size: 11px; flex-shrink: 0; margin-left: 8px;">
-              ${(f.size / 1024).toFixed(1)} KB
-            </div>
-          </div>
-        `).join('');
+          `).join('');
+        }
 
         this.parsedInvoices = [];
         const unreadableFiles = [];
-        const existingInvNumbers = new Set(App.state.invoices.map(i => (i.iv_number || '').toLowerCase()));
+        const existingInvNumbers = new Set((App.state.invoices || []).map(i => (i.iv_number || '').toUpperCase().trim()));
 
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -8498,12 +9083,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               reason: parseResult.error || 'ไม่พบโครงสร้างบิลขาย (IV Number / ยอดเงิน) หรือรูปแบบไฟล์ไม่ถูกต้อง'
             });
           } else {
-            let addedFromThisFile = 0;
             parseResult.invoices.forEach(inv => {
-              if (!existingInvNumbers.has(inv.iv_number.toLowerCase())) {
+              const ivKey = (inv.iv_number || '').toUpperCase().trim();
+              if (!existingInvNumbers.has(ivKey)) {
                 this.parsedInvoices.push(inv);
-                existingInvNumbers.add(inv.iv_number.toLowerCase());
-                addedFromThisFile++;
+                existingInvNumbers.add(ivKey);
               } else {
                 unreadableFiles.push({
                   file: file.name,
@@ -8514,13 +9098,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           }
         }
 
-        // Show error notification if any file failed
         if (unreadableFiles.length > 0 && errorContainer && errorListEl) {
           errorContainer.style.display = 'block';
           errorListEl.innerHTML = unreadableFiles.map(err => `
             <div style="margin-top: 3px;">• <strong>${err.file}</strong>: ${err.reason}</div>
           `).join('');
-          App.showToast(`ตรวจพบไฟล์ที่ไม่สามารถอ่านข้อมูลได้ ${unreadableFiles.length} รายการ`, 'warning');
+          App.showToast(`ตรวจพบไฟล์ที่ไม่สามารถนำเข้าได้ ${unreadableFiles.length} รายการ`, 'warning');
         }
 
         this.renderPreviewTable();
@@ -8537,7 +9120,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             }
             const uint8 = new Uint8Array(buffer);
 
-            // 1. Try Windows-874 / CP874 (Native Thai Express DOS & Windows encoding)
+            // 1. Try Windows-874 / CP874 (Express DOS / Windows Thai encoding)
             let decoded = '';
             try {
               decoded = new TextDecoder('windows-874').decode(uint8);
@@ -8564,133 +9147,226 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         });
       },
 
-      parseSdfContent(text, filename) {
-        if (!text || text.trim().length === 0) {
+      cleanThaiExpressText(raw) {
+        return (raw || '')
+          .replace(/\x1b[!-~]*/g, '') // Strip ESC sequences
+          .replace(/[\x00-\x09\x0b\x0c\x0e-\x1f]/g, '') // Strip non-printable controls
+          .replace(/\u00a0/g, ' '); // Replace NBSP with standard space
+      },
+
+      parseThaiDate(dateStr) {
+        if (!dateStr) return App.getLocalDateStr();
+        const parts = dateStr.trim().split(/[\/\.-]/);
+        if (parts.length === 3) {
+          let day = parseInt(parts[0], 10);
+          let month = parseInt(parts[1], 10);
+          let year = parseInt(parts[2], 10);
+
+          // Buddhist Era Year (e.g. 69 -> 2569 -> 2026, 2569 -> 2026)
+          if (year < 100) {
+            if (year >= 50) {
+              year += 2500 - 543;
+            } else {
+              year += 2000;
+            }
+          } else if (year >= 2500) {
+            year -= 543;
+          }
+
+          const yStr = String(year);
+          const mStr = String(month).padStart(2, '0');
+          const dStr = String(day).padStart(2, '0');
+          return `${yStr}-${mStr}-${dStr}`;
+        }
+        return dateStr;
+      },
+
+      parseSdfContent(rawText, filename) {
+        if (!rawText || rawText.trim().length === 0) {
           return { success: false, error: 'ไฟล์ว่างเปล่า (Empty file)', invoices: [] };
         }
 
+        const cleanedText = this.cleanThaiExpressText(rawText);
         const invoices = [];
 
-        // Split by FormFeed (\f) or multiple IV headers in single spool file
-        const docChunks = text.split(/\f|(?=เลขที่\s*[:\s]?\s*IV|\bIV\d{6,10}\b)/i).filter(c => c.trim().length > 10);
-        const chunksToProcess = docChunks.length > 0 ? docChunks : [text];
+        // Split by FormFeed (\f) or multiple IV print headers
+        const docChunks = cleanedText.split(/\f|(?=เลขที่\s*[:\s]?\s*IV|\bIV[0-9]{5,10}\b)/i).filter(c => c.trim().length > 10);
+        const chunksToProcess = docChunks.length > 0 ? docChunks : [cleanedText];
 
         chunksToProcess.forEach(chunk => {
-          // 1. IV Number detection (e.g. IV0130504, IV-6708..., IV...)
-          let ivNumber = null;
-          const ivMatch = chunk.match(/\b(IV[-0-9A-Za-z]{5,15})\b/i) ||
-                          chunk.match(/(?:เลขที่|ใบส่งของ|บิลขาย|Invoice No\.?|IV No\.?)\s*[:\s]?\s*([A-Za-z0-9-]{5,15})/i);
-          if (ivMatch) ivNumber = ivMatch[1].toUpperCase();
+          const lines = chunk.split(/\r?\n/).map(l => l.replace(/^\"|\"$/g, '').trimEnd()).filter(l => l.trim().length > 0);
 
-          // 2. Date detection (e.g. 26/08/69, 26/08/2569, 2026-08-26)
-          let invoiceDate = null;
-          const dateMatch = chunk.match(/(?:วันที่|Date)\s*[:\s]?\s*(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i) ||
-                            chunk.match(/\b(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\b/);
-          if (dateMatch) {
-            const rawDate = dateMatch[1];
-            const p = rawDate.split(/[\/\.-]/);
-            if (p.length === 3) {
-              let y = parseInt(p[2]);
-              if (y < 100) y += 2000;
-              if (y >= 2500) y -= 543;
-              if (y > 2060 && y < 2100) y -= 43; // Convert 2069 -> 2026
-              const m = String(parseInt(p[1])).padStart(2, '0');
-              const d = String(parseInt(p[0])).padStart(2, '0');
-              invoiceDate = `${y}-${m}-${d}`;
-            }
-          }
+          const doc = {
+            iv_number: '',
+            doc_type: 'ใบส่งของชั่วคราว',
+            customer_name: '',
+            customer_address: '',
+            customer_phone: '',
+            invoice_date: '',
+            delivery_vehicle: '80-9549 (รถส่งของ)',
+            total_amount: 0,
+            amount_text: '',
+            items: [],
+            source_file: filename,
+            selected: true,
+            raw_content: chunk
+          };
 
-          // 3. Delivery vehicle detection (e.g. 80-9549, 70-4921)
-          let vehicle = '80-9549 (รถส่งของ)';
-          const vehMatch = chunk.match(/(?:ทะเบียน|รถส่งของ|พนักงานขาย|ทะเบียนรถ|Vehicle)\s*[:\s]?\s*([0-9]{2,3}-[0-9]{3,5}[^\n\r]*)/i) ||
-                           chunk.match(/\b([0-9]{2,3}-[0-9]{3,5})\b/);
-          if (vehMatch) vehicle = vehMatch[1].trim();
+          let inItemsTable = false;
 
-          // 4. Customer Name detection
-          let customerName = 'ลูกค้าร้านค้า Express';
-          const custMatch = chunk.match(/(?:ชื่อลูกค้า|นามลูกค้า|ลูกค้า|รหัสลูกค้า|Customer|Sold To)\s*[:\s]?\s*([^\n\r]{3,60})/i) ||
-                            chunk.match(/(?:ร้าน|บจก\.|หจก\.|คุณ)\s*([^\n\r]{3,50})/i);
-          if (custMatch) {
-            customerName = custMatch[1].replace(/["'“”]/g, '').trim();
-          }
+          for (let i = 0; i < lines.length; i++) {
+            const rawLine = lines[i];
+            const cleanLine = rawLine
+              .replace(/[\u0080-\u009F\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
 
-          // 5. Total Amount detection & Line items
-          const lines = chunk.split(/[\r\n]+/);
-          const items = [];
-          let itemCounter = 1;
-          let extractedTotal = 0;
-
-          for (const line of lines) {
-            // Line items pattern: No, Name, Qty, Unit, UnitPrice, TotalPrice
-            const itemMatch = line.match(/^\s*["”']?\s*(\d{1,3})\s+([^\d\n\r]{3,40})\s+(\d+(?:\.\d+)?)\s+([^\d\n\r]{1,15})\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/);
-            if (itemMatch) {
-              items.push({
-                no: parseInt(itemMatch[1]) || itemCounter,
-                name: itemMatch[2].trim().replace(/["'“”]/g, ''),
-                quantity: parseFloat(itemMatch[3]) || 1,
-                unit: itemMatch[4].trim().replace(/["'“”]/g, ''),
-                unit_price: parseFloat(itemMatch[5]) || 0,
-                total_price: parseFloat(itemMatch[6]) || 0
-              });
-              itemCounter++;
+            // 1. Doc Type
+            if (cleanLine.includes('ใบส่งของ') || cleanLine.includes('ใบกำกับภาษี') || cleanLine.includes('ใบแจ้งหนี้') || cleanLine.includes('ใบเสร็จ')) {
+              const dtMatch = cleanLine.match(/(ใบส่งของชั่วคราว|ใบส่งของ|ใบกำกับภาษี|ใบเสร็จรับเงิน|ใบแจ้งหนี้)/);
+              if (dtMatch) doc.doc_type = dtMatch[1];
             }
 
-            // Grand total line detection
-            if (/(?:รวมเงินทั้งสิ้น|ยอดรวมทั้งสิ้น|จำนวนเงินรวมทั้งสิ้น|รวมเงิน|Grand Total|Total Amount|จำนวนเงิน)/i.test(line)) {
-              const numMatch = line.match(/(\d{1,3}(?:,\d{3})*\.\d{2})/);
-              if (numMatch) {
-                extractedTotal = parseFloat(numMatch[1].replace(/,/g, ''));
+            // 2. IV Number
+            const ivMatch = rawLine.match(/(?:เลขที่ใบส่งของ|เลขที่|เลขที่บิล|IV\s*No\.?)\s*[:\s]*([A-Z0-9\-\/]+)/i) ||
+                            rawLine.match(/\b(IV[0-9]{5,10})\b/i);
+            if (ivMatch && !doc.iv_number) {
+              doc.iv_number = ivMatch[1].trim().toUpperCase();
+            }
+
+            // 3. Customer Name
+            if (!doc.customer_name && (rawLine.includes('ร้าน') || rawLine.includes('เลขที่ใบส่งของ') || i <= 3)) {
+              if (!rawLine.includes('ใบส่งของชั่วคราว') && !rawLine.includes('ใบกำกับภาษี') && !rawLine.includes('No.')) {
+                let leftPart = rawLine;
+                if (leftPart.includes('เลขที่ใบส่งของ')) {
+                  leftPart = leftPart.split('เลขที่ใบส่งของ')[0];
+                } else if (leftPart.includes('IV')) {
+                  leftPart = leftPart.split(/\bIV/i)[0];
+                }
+                leftPart = leftPart.replace(/[\u0080-\u009F\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178\"']/g, ' ').trim();
+                if (leftPart.length > 1 && !leftPart.startsWith('No.') && !leftPart.startsWith('วันที่')) {
+                  doc.customer_name = leftPart;
+                }
+              }
+            }
+
+            // 4. Date
+            const dateMatch = rawLine.match(/วันที่\s*[:\s]*([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})/);
+            if (dateMatch && !doc.invoice_date) {
+              doc.invoice_date = this.parseThaiDate(dateMatch[1]);
+            }
+
+            // 5. Vehicle / Salesperson
+            const salesMatch = rawLine.match(/(?:พนักงานขาย|ทะเบียนรถ|รถส่งของ)\s*[:\s]*([^\"]+)/);
+            if (salesMatch) {
+              let salesStr = salesMatch[1].replace(/[\u0080-\u009F\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178\"']/g, ' ').trim();
+              if (salesStr) {
+                doc.delivery_vehicle = salesStr;
+              }
+            }
+
+            // 6. Phone
+            const phoneMatch = rawLine.match(/(0\d{1,2}[\s\-]?(?:\d{3}[\s\-]?\d{3,4}|\d{2}[\s\-]?\d{4}))/g);
+            if (phoneMatch && !doc.customer_phone) {
+              doc.customer_phone = phoneMatch.join(', ');
+            }
+
+            // 7. Address / Zone
+            if (!inItemsTable && i >= 1 && i <= 4) {
+              if (!rawLine.includes('No.') && !rawLine.includes('รหัสสินค้า') && !rawLine.includes('ใบส่งของ')) {
+                let addrPart = rawLine;
+                if (addrPart.includes('วันที่')) addrPart = addrPart.split('วันที่')[0];
+                if (addrPart.includes('พนักงานขาย')) addrPart = addrPart.split('พนักงานขาย')[0];
+                if (doc.customer_phone) {
+                  doc.customer_phone.split(',').forEach(p => {
+                    addrPart = addrPart.replace(p.trim(), '');
+                  });
+                }
+                addrPart = addrPart.replace(/[\u0080-\u009F\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178\"']/g, ' ').trim();
+                if (doc.customer_name && addrPart === doc.customer_name) addrPart = '';
+                if (addrPart && !doc.customer_address && !addrPart.match(/^[0-9\s\-\,]+$/)) {
+                  doc.customer_address = addrPart;
+                }
+              }
+            }
+
+            // Table Header Detection
+            if (cleanLine.includes('No.') || cleanLine.includes('รหัสสินค้า') || cleanLine.includes('รายละเอียด') || cleanLine.includes('จำนวนเงิน')) {
+              inItemsTable = true;
+              continue;
+            }
+
+            // Grand Total Detection
+            if (cleanLine.includes('จำนวนเงินรวมทั้งสิ้น') || cleanLine.includes('รวมทั้งสิ้น') || cleanLine.includes('รวมเงิน') || cleanLine.includes('ยอดสุทธิ') || cleanLine.includes('Grand Total')) {
+              inItemsTable = false;
+              const totalMatch = cleanLine.match(/([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2}))/g);
+              if (totalMatch) {
+                doc.total_amount = parseFloat(totalMatch[totalMatch.length - 1].replace(/,/g, ''));
+              }
+              const amtTxtMatch = rawLine.match(/\(([^)]*บาท[^)]*)\)/);
+              if (amtTxtMatch) {
+                doc.amount_text = amtTxtMatch[1].trim();
+              }
+              continue;
+            }
+
+            // Line items parsing (handles product names containing numbers)
+            if (inItemsTable) {
+              const itemMatch = cleanLine.match(/^(\d+)\s+(.+?)\s+([\d,]+\.?\d*)\s+([^\d\s,]+)\s+([\d,]+\.?\d*)\s+([\d,]+\.?\d*)$/);
+              if (itemMatch) {
+                doc.items.push({
+                  no: parseInt(itemMatch[1], 10),
+                  name: itemMatch[2].trim(),
+                  quantity: parseFloat(itemMatch[3].replace(/,/g, '')),
+                  unit: itemMatch[4].trim(),
+                  unit_price: parseFloat(itemMatch[5].replace(/,/g, '')),
+                  total_price: parseFloat(itemMatch[6].replace(/,/g, ''))
+                });
               }
             }
           }
 
-          if (extractedTotal <= 0 && items.length > 0) {
-            extractedTotal = items.reduce((sum, it) => sum + it.total_price, 0);
+          // Fallbacks
+          if (!doc.customer_name) {
+            doc.customer_name = filename.replace(/\.txt$/i, '');
           }
-          if (extractedTotal <= 0) {
-            const allNumbers = [];
-            const numRegex = /\b(\d{1,3}(?:,\d{3})*\.\d{2})\b/g;
-            let nm;
-            while ((nm = numRegex.exec(chunk)) !== null) {
-              allNumbers.push(parseFloat(nm[1].replace(/,/g, '')));
-            }
-            if (allNumbers.length > 0) {
-              extractedTotal = allNumbers[allNumbers.length - 1];
-            }
+          if (!doc.invoice_date) {
+            doc.invoice_date = App.getLocalDateStr();
+          }
+          if (doc.total_amount <= 0 && doc.items.length > 0) {
+            doc.total_amount = doc.items.reduce((sum, item) => sum + item.total_price, 0);
           }
 
-          // Delimited format fallback (SDF / CSV / TXT delimited)
-          if (!ivNumber && lines.length > 0) {
+          // Fallback Delimited check (SDF / CSV format)
+          if (!doc.iv_number && lines.length > 0) {
             for (const line of lines) {
               const parts = line.split(/[,\t|;]/).map(p => p.trim().replace(/^["']|["']$/g, ''));
               if (parts.length >= 3) {
                 const possibleIv = parts.find(p => /^IV/i.test(p));
                 const possibleAmount = parseFloat((parts.find(p => /^\d+(\.\d{2})?$/.test(p.replace(/,/g, ''))) || '').replace(/,/g, ''));
                 if (possibleIv && possibleAmount > 0) {
-                  ivNumber = possibleIv;
-                  invoiceDate = parts.find(p => /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(p)) || App.getLocalDateStr();
-                  extractedTotal = possibleAmount;
-                  customerName = parts.find(p => p.length > 3 && !/^\d+$/.test(p) && p !== possibleIv) || customerName;
+                  doc.iv_number = possibleIv;
+                  doc.total_amount = possibleAmount;
+                  doc.invoice_date = parts.find(p => /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(p)) || App.getLocalDateStr();
+                  doc.customer_name = parts.find(p => p.length > 3 && !/^\d+$/.test(p) && p !== possibleIv) || doc.customer_name;
                   break;
                 }
               }
             }
           }
 
-          // STRICT CHECK: Must find valid IV Number AND positive total amount
-          if (ivNumber && extractedTotal > 0) {
-            invoices.push({
-              iv_number: ivNumber,
-              customer_name: customerName,
-              invoice_date: invoiceDate || App.getLocalDateStr(),
-              delivery_vehicle: vehicle,
-              total_amount: extractedTotal,
-              items: items.length > 0 ? items : [
-                { no: 1, name: 'สินค้าตามบิลส่งของ Express (' + ivNumber + ')', quantity: 1, unit: 'บิล', unit_price: extractedTotal, total_price: extractedTotal }
-              ],
-              source_file: filename,
-              selected: true
-            });
+          if (doc.iv_number && doc.total_amount > 0) {
+            if (doc.items.length === 0) {
+              doc.items.push({
+                no: 1,
+                name: 'สินค้าตามบิลส่งของ Express (' + doc.iv_number + ')',
+                quantity: 1,
+                unit: 'บิล',
+                unit_price: doc.total_amount,
+                total_price: doc.total_amount
+              });
+            }
+            invoices.push(doc);
           }
         });
 
@@ -8710,10 +9386,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const summaryText = document.getElementById('sdfParsedSummary');
         const btnConfirm = document.getElementById('btnConfirmSdfImport');
 
+        if (!tbody || !summaryText || !btnConfirm) return;
+
         if (this.parsedInvoices.length === 0) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="7" style="text-align:center; padding:36px; color:var(--status-unpaid);">
+              <td colspan="9" style="text-align:center; padding:36px; color:var(--status-unpaid);">
                 <div style="font-size: 28px; margin-bottom: 6px;">❌</div>
                 <div style="font-size: 14px; font-weight: 700;">ไม่พบข้อมูลบิลขายที่สามารถนำเข้าได้</div>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
@@ -8727,24 +9405,50 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           return;
         }
 
+        const selectedCount = this.parsedInvoices.filter(i => i.selected !== false).length;
         const totalAmount = this.parsedInvoices.reduce((sum, i) => sum + (i.selected !== false ? i.total_amount : 0), 0);
-        summaryText.innerHTML = `พบข้อมูลบิลขายทั้งหมด <strong class="text-emerald font-mono">${this.parsedInvoices.length}</strong> รายการ | ยอดรวม <strong class="text-emerald font-mono">${App.formatCurrency(totalAmount)}</strong>`;
+        const totalItemsCount = this.parsedInvoices.reduce((sum, i) => sum + (i.selected !== false ? (i.items?.length || 0) : 0), 0);
+
+        summaryText.innerHTML = `
+          <span>พบข้อมูลบิลขายทั้งหมด <strong class="text-emerald font-mono">${this.parsedInvoices.length}</strong> รายการ (เลือก <strong class="text-emerald font-mono">${selectedCount}</strong> รายการ, ${totalItemsCount} รายการสินค้า) | ยอดรวม <strong class="text-emerald font-mono">${App.formatCurrency(totalAmount)}</strong></span>
+        `;
         btnConfirm.style.display = 'inline-flex';
-        btnConfirm.innerHTML = `<span>📥 ยืนยันนำเข้าบิลขาย (${App.formatCurrency(totalAmount)})</span>`;
+        btnConfirm.innerHTML = `<span>📥 ยืนยันนำเข้าบิลขาย ${selectedCount} รายการ (${App.formatCurrency(totalAmount)})</span>`;
 
         tbody.innerHTML = this.parsedInvoices.map((inv, idx) => `
           <tr>
             <td style="text-align: center;">
               <input type="checkbox" ${inv.selected !== false ? 'checked' : ''} onchange="SdfImportModal.toggleSelect(${idx}, this.checked)">
             </td>
-            <td class="font-mono font-weight:700 text-emerald">${inv.iv_number}</td>
+            <td class="font-mono font-weight:700 text-emerald" style="cursor: pointer;" onclick="InvoiceDocModal.openPreview(${idx})" title="คลิกดูตัวอย่างบิล">${inv.iv_number}</td>
             <td><strong>${inv.invoice_date}</strong></td>
-            <td style="font-weight: 600;">${inv.customer_name}</td>
+            <td style="font-weight: 600;">
+              <div>${inv.customer_name}</div>
+              ${inv.customer_phone ? `<div style="font-size: 11px; color: var(--text-muted);">📞 ${inv.customer_phone}</div>` : ''}
+            </td>
+            <td><span style="font-size:12px; color:var(--text-secondary);">${inv.customer_address || '-'}</span></td>
             <td><span style="font-size:12px; color:var(--text-muted);">🚛 ${inv.delivery_vehicle}</span></td>
             <td style="text-align: right;" class="font-mono font-weight:700">${App.formatCurrency(inv.total_amount)}</td>
-            <td><span class="badge badge-doc" style="font-size:10.5px;">${inv.source_file}</span></td>
+            <td style="text-align: center;"><span class="badge badge-doc" style="font-size:11px;">${inv.items?.length || 0} รายการ</span></td>
+            <td style="text-align: center;">
+              <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11.5px;" onclick="InvoiceDocModal.openPreview(${idx})" title="ดูแบบฟอร์มบิลกระดาษต่อเนื่อง">
+                🔍 ดูบิล
+              </button>
+            </td>
           </tr>
         `).join('');
+
+        const selectAllCb = document.getElementById('sdfSelectAllCheckbox');
+        if (selectAllCb) {
+          selectAllCb.checked = selectedCount === this.parsedInvoices.length && this.parsedInvoices.length > 0;
+        }
+      },
+
+      toggleSelectAll(checked) {
+        this.parsedInvoices.forEach(inv => {
+          inv.selected = checked;
+        });
+        this.renderPreviewTable();
       },
 
       toggleSelect(idx, checked) {
@@ -8762,22 +9466,33 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         }
 
         selected.forEach(inv => {
-          let customer = App.state.customers.find(c => c.name.includes(inv.customer_name) || inv.customer_name.includes(c.name));
+          let customer = (App.state.customers || []).find(c =>
+            (c.name && inv.customer_name && (c.name.toLowerCase().includes(inv.customer_name.toLowerCase()) || inv.customer_name.toLowerCase().includes(c.name.toLowerCase())))
+          );
+
           if (!customer) {
-            const nextCodeNum = App.state.customers.length + 1;
+            const nextCodeNum = (App.state.customers || []).length + 1;
             customer = {
               id: 'CUST-' + String(nextCodeNum).padStart(3, '0'),
               code: 'AR-' + String(nextCodeNum).padStart(3, '0'),
               name: inv.customer_name,
-              phone: '-',
-              address: '-'
+              phone: inv.customer_phone || '-',
+              address: inv.customer_address || '-'
             };
             App.state.customers.push(customer);
+          } else {
+            if (inv.customer_phone && (!customer.phone || customer.phone === '-')) {
+              customer.phone = inv.customer_phone;
+            }
+            if (inv.customer_address && (!customer.address || customer.address === '-')) {
+              customer.address = inv.customer_address;
+            }
           }
 
           App.state.invoices.unshift({
             id: 'INV-' + String(App.state.invoices.length + 1).padStart(3, '0'),
             iv_number: inv.iv_number,
+            doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
             customer_id: customer.id,
             invoice_date: inv.invoice_date,
             due_date: inv.invoice_date,
@@ -8787,8 +9502,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             outstanding_amount: inv.total_amount,
             status: 'UNPAID',
             items: inv.items || [
-              { no: 1, name: 'สินค้าตามบิลส่งของ Express/SPF', quantity: 1, unit: 'ชุด', unit_price: inv.total_amount, total_price: inv.total_amount }
+              { no: 1, name: 'สินค้าตามบิลส่งของ Express', quantity: 1, unit: 'ชุด', unit_price: inv.total_amount, total_price: inv.total_amount }
             ],
+            amount_text: inv.amount_text || '',
+            raw_content: inv.raw_content || '',
+            source_file: inv.source_file || '',
             slip_data: null
           });
         });
@@ -8802,13 +9520,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           action: 'IMPORT_SPF_SDF',
           table_name: 'invoices',
           record_id: `BATCH-${selected.length}-SPF`,
-          detail: `นำเข้าบิลขายจาก Express .SPF/.SDF สำเร็จ ${selected.length} รายการ ยอดรวม ${App.formatCurrency(totalAmount)}`
+          detail: `นำเข้าบิลขายจาก Express .TXT/.SDF/.SPF สำเร็จ ${selected.length} รายการ ยอดรวม ${App.formatCurrency(totalAmount)}`
         });
 
         DataManager.save(App.state);
         App.refreshAllViews();
         this.close();
-        App.showToast(`นำเข้าบิลขาย Express (.SPF/.SDF) สำเร็จ ${selected.length} รายการ`, 'success');
+        App.showToast(`นำเข้าบิลขาย Express สำเร็จ ${selected.length} รายการ (ยอดรวม ${App.formatCurrency(totalAmount)})`, 'success');
         Router.navigate('invoices');
       }
     };
