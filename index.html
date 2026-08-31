@@ -4549,57 +4549,99 @@
     // 1. DATA MANAGER & PRODUCTION CLEAN STATE
     const DataManager = {
       STORAGE_KEY: 'khuckngurn_flow_v13_prod',
+      MASTER_KEY: 'khuckngurn_flow_master_state',
+      BACKUP_KEYS: [
+        'khuckngurn_flow_v13_prod',
+        'khuckngurn_flow_master_state',
+        'khuckngurn_flow_v12_prod',
+        'khuckngurn_flow_v11_prod',
+        'khuckngurn_flow_v10_prod',
+        'khuckngurn_flow_state',
+        'khuckngurn_flow_prod',
+        'khuckngurn_flow_data'
+      ],
 
-      cleanOldStorage() {
-        try {
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('khuckngurn_flow_') && key !== this.STORAGE_KEY) {
-              localStorage.removeItem(key);
-            }
-          }
-        } catch (e) {}
-      },
+      getMasterSeedData() {
+        const seedCustomers = [
+          { id: 'CUST-035', code: 'AR-035', name: 'ร้าน แหลมสมุทร', phone: '081-998-7766', address: 'ตลาดสดเทศบาล อ.เมือง' },
+          { id: 'CUST-001', code: 'AR-001', name: 'ร้าน จึงใจ้หมง', phone: '086-112-3344', address: 'ถ.พาณิชย์ ต.ในเมือง' },
+          { id: 'CUST-002', code: 'AR-002', name: 'ร้าน จุมพล', phone: '089-556-7788', address: 'ตลาดใหม่ ซอย 3' },
+          { id: 'CUST-003', code: 'AR-003', name: 'ร้าน สิงเพชร', phone: '081-334-9900', address: 'หน้าสถานีรถไฟ' },
+          { id: 'CUST-004', code: 'AR-004', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน1', phone: '087-223-4455', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-005', code: 'AR-005', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน2', phone: '087-223-4456', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-006', code: 'AR-006', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน3', phone: '087-223-4457', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-007', code: 'AR-007', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน4', phone: '087-223-4458', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-008', code: 'AR-008', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน5', phone: '087-223-4459', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-009', code: 'AR-009', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน6', phone: '087-223-4460', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-010', code: 'AR-010', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน7', phone: '087-223-4461', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-011', code: 'AR-011', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน8', phone: '087-223-4462', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-012', code: 'AR-012', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน9', phone: '087-223-4463', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-013', code: 'AR-013', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน10', phone: '087-223-4464', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-014', code: 'AR-014', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน11', phone: '087-223-4465', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-015', code: 'AR-015', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน12', phone: '087-223-4466', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-016', code: 'AR-016', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน13', phone: '087-223-4467', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-017', code: 'AR-017', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน14', phone: '087-223-4468', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-018', code: 'AR-018', name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน15', phone: '087-223-4469', address: 'เก้าเลี้ยว ต.ส้มเสี่ยว' },
+          { id: 'CUST-019', code: 'AR-019', name: 'ร้าน เจ๊แดง', phone: '081-884-2211', address: 'ตลาดริมน้ำ ต.ปากน้ำ' },
+          { id: 'CUST-020', code: 'AR-020', name: 'ร้าน แม่ฉ่าย', phone: '089-667-1122', address: 'สามแยกท่าตะโก' },
+          { id: 'CUST-021', code: 'AR-021', name: 'ร้าน ไทยวิวัฒน์', phone: '085-332-8899', address: 'ถ.สวรรค์วิถี' }
+        ];
 
-      getInitialData() {
+        const seedInvoices = [
+          { id: 'INV-035', iv_number: 'IV0130504', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-035', customer_name: 'ร้าน แหลมสมุทร', invoice_date: '2026-08-26', due_date: '2026-08-26', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 37400.00, paid_amount: 0, outstanding_amount: 37400.00, status: 'UNPAID', items: [{ code: 'PROD-01', name: 'สินค้าขายส่งรวม', qty: 1, unit: 'ชุด', unit_price: 37400, total_price: 37400 }], source_file: 'แหลมสมุทร.txt' },
+          { id: 'INV-001', iv_number: 'IV0130506', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-001', customer_name: 'ร้าน จึงใจ้หมง', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 24650.00, paid_amount: 0, outstanding_amount: 24650.00, status: 'UNPAID', items: [{ code: 'PROD-02', name: 'สินค้าขายส่ง Express', qty: 1, unit: 'ชุด', unit_price: 24650, total_price: 24650 }], source_file: 'จึงใจ้หมง.txt' },
+          { id: 'INV-002', iv_number: 'IV0130511', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-002', customer_name: 'ร้าน จุมพล', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 18200.00, paid_amount: 0, outstanding_amount: 18200.00, status: 'UNPAID', items: [{ code: 'PROD-03', name: 'สินค้าขายส่ง Express', qty: 1, unit: 'ชุด', unit_price: 18200, total_price: 18200 }], source_file: 'จุมพล.txt' },
+          { id: 'INV-003', iv_number: 'IV0130510', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-003', customer_name: 'ร้าน สิงเพชร', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 31500.00, paid_amount: 0, outstanding_amount: 31500.00, status: 'UNPAID', items: [{ code: 'PROD-04', name: 'สินค้าขายส่ง Express', qty: 1, unit: 'ชุด', unit_price: 31500, total_price: 31500 }], source_file: 'สิงเพชร.txt' },
+          { id: 'INV-004', iv_number: 'IV0130512', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-004', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน1', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 15400.00, paid_amount: 0, outstanding_amount: 15400.00, status: 'UNPAID', items: [{ code: 'PROD-05', name: 'สินค้าขายส่ง Express', qty: 1, unit: 'ชุด', unit_price: 15400, total_price: 15400 }], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน1.txt' },
+          { id: 'INV-005', iv_number: 'IV0130513', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-005', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน2', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 22800.00, paid_amount: 0, outstanding_amount: 22800.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน2.txt' },
+          { id: 'INV-006', iv_number: 'IV0130514', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-006', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน3', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 19300.00, paid_amount: 0, outstanding_amount: 19300.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน3.txt' },
+          { id: 'INV-007', iv_number: 'IV0130515', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-007', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน4', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 45000.00, paid_amount: 0, outstanding_amount: 45000.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน4.txt' },
+          { id: 'INV-008', iv_number: 'IV0130516', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-008', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน5', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 12900.00, paid_amount: 0, outstanding_amount: 12900.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน5.txt' },
+          { id: 'INV-009', iv_number: 'IV0130517', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-009', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน6', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 38700.00, paid_amount: 0, outstanding_amount: 38700.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน6.txt' },
+          { id: 'INV-010', iv_number: 'IV0130518', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-010', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน7', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 29400.00, paid_amount: 0, outstanding_amount: 29400.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน7.txt' },
+          { id: 'INV-011', iv_number: 'IV0130519', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-011', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน8', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 16800.00, paid_amount: 0, outstanding_amount: 16800.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน8.txt' },
+          { id: 'INV-012', iv_number: 'IV0130520', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-012', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน9', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 21500.00, paid_amount: 0, outstanding_amount: 21500.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน9.txt' },
+          { id: 'INV-013', iv_number: 'IV0130521', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-013', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน10', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 14200.00, paid_amount: 0, outstanding_amount: 14200.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน10.txt' },
+          { id: 'INV-014', iv_number: 'IV0130522', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-014', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน11', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 33600.00, paid_amount: 0, outstanding_amount: 33600.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน11.txt' },
+          { id: 'INV-015', iv_number: 'IV0130523', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-015', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน12', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 27100.00, paid_amount: 0, outstanding_amount: 27100.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน12.txt' },
+          { id: 'INV-016', iv_number: 'IV0130524', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-016', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน13', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 11500.00, paid_amount: 0, outstanding_amount: 11500.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน13.txt' },
+          { id: 'INV-017', iv_number: 'IV0130525', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-017', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน14', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 42300.00, paid_amount: 0, outstanding_amount: 42300.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน14.txt' },
+          { id: 'INV-018', iv_number: 'IV0130526', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-018', customer_name: 'ร้าน ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน15', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 20900.00, paid_amount: 0, outstanding_amount: 20900.00, status: 'UNPAID', items: [], source_file: 'ส้มเสี่ยว.เก้าเลี้ยว.ตาซ่วน15.txt' },
+          { id: 'INV-019', iv_number: 'IV0130507', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-019', customer_name: 'ร้าน เจ๊แดง', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 35800.00, paid_amount: 0, outstanding_amount: 35800.00, status: 'UNPAID', items: [], source_file: 'เจ๊แดง.txt' },
+          { id: 'INV-020', iv_number: 'IV0130509', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-020', customer_name: 'ร้าน แม่ฉ่าย', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 28400.00, paid_amount: 0, outstanding_amount: 28400.00, status: 'UNPAID', items: [], source_file: 'แม่ฉ่าย.txt' },
+          { id: 'INV-021', iv_number: 'IV0130508', doc_type: 'ใบส่งของชั่วคราว', customer_id: 'CUST-021', customer_name: 'ร้าน ไทยวิวัฒน์', invoice_date: '2026-08-27', due_date: '2026-08-27', delivery_vehicle: '80-9549', salesperson: '80-9549', total_amount: 17600.00, paid_amount: 0, outstanding_amount: 17600.00, status: 'UNPAID', items: [], source_file: 'ไทยวิวัฒน์.txt' }
+        ];
+
         return {
-          currentUserRole: null, // null until authenticated via Login PIN (CEO: 9999, STAFF: 1234, ADMIN: 0318)
-          fontSize: 'normal', // Default to 100% (Normal Standard)
+          currentUserRole: null,
+          fontSize: 'normal',
           geminiApiKey: '',
-          adminPin: '0318', // Default Admin PIN (Configurable in Settings)
-          ceoPin: '9999',   // Default CEO PIN (Configurable in Settings)
-          staffPin: '1234', // Default General Staff PIN
+          adminPin: '0318',
+          ceoPin: '9999',
+          staffPin: '1234',
           salespersons: [
             { id: 'STAFF-01', name: 'พนักงานฝ่ายขาย (ทั่วไป)', pin: '1234', vehicle: 'ทุกคัน / ทั่วไป', phone: '081-234-5678', is_active: true },
             { id: 'STAFF-02', name: 'สมชาย พนักงานส่งของ', pin: '1101', vehicle: '70-4921 กทม. (รถ 4 ล้อใหญ่)', phone: '089-111-2222', is_active: true },
             { id: 'STAFF-03', name: 'สมศักดิ์ พนักงานส่งของ', pin: '1102', vehicle: '71-8842 กทม. (รถ 6 ล้อตู้)', phone: '086-333-4444', is_active: true },
             { id: 'STAFF-04', name: 'วิชัย พนักงานส่งของ', pin: '1103', vehicle: '72-1109 นนทบุรี', phone: '081-555-6666', is_active: true }
           ],
-          companyBankAccounts: [], // User-configurable in Settings / Dynamic from actual payments
-          customers: [],
-          invoices: [],
+          companyBankAccounts: [],
+          customers: seedCustomers,
+          invoices: seedInvoices,
           payments: [],
           payment_allocations: [],
           audit_logs: []
         };
       },
 
-      load() {
-        this.cleanOldStorage();
-        let state = null;
-        const stored = localStorage.getItem(this.STORAGE_KEY);
-        if (stored) {
-          try { state = JSON.parse(stored); } catch (e) { console.error('Failed to parse state', e); }
-        }
-        if (!state) {
-          state = this.getInitialData();
-          this.save(state);
-        }
-
-        // Ensure backward compatibility defaults
-        if (!state.adminPin) state.adminPin = '0318';
-        if (!state.ceoPin) state.ceoPin = '9999';
-        if (!state.staffPin) state.staffPin = '1234';
+      ensureDataIntegrity(state) {
+        if (!state || typeof state !== 'object') state = this.getMasterSeedData();
+        if (!Array.isArray(state.invoices)) state.invoices = [];
+        if (!Array.isArray(state.customers)) state.customers = [];
+        if (!Array.isArray(state.payments)) state.payments = [];
+        if (!Array.isArray(state.payment_allocations)) state.payment_allocations = [];
+        if (!Array.isArray(state.audit_logs)) state.audit_logs = [];
+        if (!Array.isArray(state.companyBankAccounts)) state.companyBankAccounts = [];
         if (!Array.isArray(state.salespersons) || state.salespersons.length === 0) {
           state.salespersons = [
             { id: 'STAFF-01', name: 'พนักงานฝ่ายขาย (ทั่วไป)', pin: '1234', vehicle: 'ทุกคัน / ทั่วไป', phone: '081-234-5678', is_active: true },
@@ -4608,10 +4650,123 @@
             { id: 'STAFF-04', name: 'วิชัย พนักงานส่งของ', pin: '1103', vehicle: '72-1109 นนทบุรี', phone: '081-555-6666', is_active: true }
           ];
         }
-        // Asynchronously hydrate from IndexedDB if higher-resolution attachments exist
+
+        // If both invoices and customers are empty, restore master seed data immediately
+        if (state.invoices.length === 0 && state.customers.length === 0) {
+          const seed = this.getMasterSeedData();
+          state.invoices = seed.invoices;
+          state.customers = seed.customers;
+        }
+
+        // Auto-synthesize & normalize any missing customer from invoices
+        const custMap = new Map(state.customers.map(c => [c.id, c]));
+        const custByName = new Map(state.customers.map(c => [c.name.trim().toLowerCase(), c]));
+
+        state.invoices.forEach(inv => {
+          inv.total_amount = Number(inv.total_amount || 0);
+          inv.paid_amount = Number(inv.paid_amount || 0);
+          inv.outstanding_amount = Number(inv.outstanding_amount !== undefined ? inv.outstanding_amount : (inv.total_amount - inv.paid_amount));
+
+          let cust = custMap.get(inv.customer_id) || custByName.get((inv.customer_name || '').trim().toLowerCase());
+          if (!cust && inv.customer_name) {
+            const nextIdx = state.customers.length + 1;
+            const newId = inv.customer_id || ('CUST-' + String(nextIdx).padStart(3, '0'));
+            const newCode = inv.customer_code || ('AR-' + String(nextIdx).padStart(3, '0'));
+            cust = {
+              id: newId,
+              code: newCode,
+              name: inv.customer_name,
+              phone: inv.customer_phone || '-',
+              address: inv.customer_address || '-'
+            };
+            state.customers.push(cust);
+            custMap.set(newId, cust);
+            custByName.set(cust.name.trim().toLowerCase(), cust);
+          }
+          if (cust) {
+            inv.customer_id = cust.id;
+            inv.customer_name = cust.name;
+          }
+        });
+
+        // Ensure backward compatibility defaults
+        if (!state.adminPin) state.adminPin = '0318';
+        if (!state.ceoPin) state.ceoPin = '9999';
+        if (!state.staffPin) state.staffPin = '1234';
+
+        return state;
+      },
+
+      findBestStoredState() {
+        let bestState = null;
+        let maxScore = -1;
+
+        const keysToScan = new Set(this.BACKUP_KEYS);
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('khuckngurn_flow_') || k.startsWith('khuckngurn_'))) {
+              keysToScan.add(k);
+            }
+          }
+        } catch (_) {}
+
+        keysToScan.forEach(k => {
+          try {
+            const raw = localStorage.getItem(k);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+            const invCount = Array.isArray(parsed.invoices) ? parsed.invoices.length : 0;
+            const custCount = Array.isArray(parsed.customers) ? parsed.customers.length : 0;
+            const payCount = Array.isArray(parsed.payments) ? parsed.payments.length : 0;
+            const score = (invCount * 10) + (custCount * 5) + (payCount * 2);
+            if (score > maxScore) {
+              maxScore = score;
+              bestState = parsed;
+            }
+          } catch (_) {}
+        });
+
+        return bestState;
+      },
+
+      getInitialData() {
+        return this.getMasterSeedData();
+      },
+
+      load() {
+        let state = null;
+        const stored = localStorage.getItem(this.STORAGE_KEY);
+        if (stored) {
+          try { state = JSON.parse(stored); } catch (e) { console.error('Failed to parse state', e); }
+        }
+
+        // If current key is empty or has 0 invoices/customers, recover best state from any backup key
+        if (!state || (!state.invoices?.length && !state.customers?.length)) {
+          const recovered = this.findBestStoredState();
+          if (recovered && (recovered.invoices?.length > 0 || recovered.customers?.length > 0)) {
+            state = recovered;
+            console.log('Successfully recovered data from backup localStorage state!');
+          }
+        }
+
+        if (!state) {
+          state = this.getMasterSeedData();
+        }
+
+        state = this.ensureDataIntegrity(state);
+        this.saveLocalOnly(state);
+
+        // Asynchronously hydrate from IndexedDB if available
         IDBStateStore.get(this.STORAGE_KEY).then(idbState => {
           if (idbState && App && App.state) {
             let updated = false;
+            if (Array.isArray(idbState.invoices) && idbState.invoices.length > App.state.invoices.length) {
+              App.state.invoices = idbState.invoices;
+              if (Array.isArray(idbState.customers)) App.state.customers = idbState.customers;
+              updated = true;
+            }
             if (Array.isArray(idbState.invoices)) {
               idbState.invoices.forEach(idbInv => {
                 const cur = App.state.invoices.find(i => i.id === idbInv.id);
@@ -4622,10 +4777,12 @@
               });
             }
             if (updated && typeof App.refreshAllViews === 'function') {
+              DataManager.ensureDataIntegrity(App.state);
               App.refreshAllViews();
             }
           }
         }).catch(() => {});
+
         return state;
       },
 
@@ -4676,16 +4833,21 @@
 
       saveLocalOnly(data) {
         if (!data) return;
+        this.ensureDataIntegrity(data);
         IDBStateStore.set(this.STORAGE_KEY, data);
+        IDBStateStore.set(this.MASTER_KEY, data);
+
+        const sanitized = this.sanitizeForLocalStorage(data);
+        const jsonStr = JSON.stringify(sanitized);
+
         try {
-          localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+          localStorage.setItem(this.STORAGE_KEY, jsonStr);
+          localStorage.setItem(this.MASTER_KEY, jsonStr);
         } catch (err) {
           try {
-            this.cleanOldStorage();
-            const sanitized = this.sanitizeForLocalStorage(data);
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sanitized));
+            localStorage.setItem(this.STORAGE_KEY, jsonStr);
           } catch (fallbackErr) {
-            console.warn('LocalStorage write skipped:', fallbackErr);
+            console.warn('LocalStorage write fallback error:', fallbackErr);
           }
         }
       },
@@ -4699,11 +4861,11 @@
       },
 
       resetToDemoData() {
-        const initial = this.getInitialData();
+        const initial = this.getMasterSeedData();
         this.save(initial);
         App.state = initial;
         App.refreshAllViews();
-        App.showToast('รีเซ็ตข้อมูลเรียบร้อยแล้ว', 'success');
+        App.showToast('รีเซ็ตฐานข้อมูลเป็นชุดเริ่มต้นเรียบร้อยแล้ว', 'success');
       }
     };
 
@@ -5276,6 +5438,19 @@ END $$;
           const cleanState = this.sanitizeForCloud(state);
           const nowIso = new Date().toISOString();
 
+          // Safety guard: Check if cloud already has data before overwriting with empty
+          if ((!cleanState.invoices || cleanState.invoices.length === 0) && (!cleanState.customers || cleanState.customers.length === 0)) {
+            try {
+              const { data: existingSnap } = await this.client.from('app_state_backup').select('state_data').eq('id', 'main_state').single();
+              if (existingSnap?.state_data?.invoices?.length > 0 || existingSnap?.state_data?.customers?.length > 0) {
+                console.warn('Cloud protection: Aborted pushing empty state over populated Cloud state. Pulling from Cloud instead.');
+                await this.pullFreshData(false);
+                this.isSyncing = false;
+                return;
+              }
+            } catch (_) {}
+          }
+
           const snapshot = {
             id: 'main_state',
             state_data: {
@@ -5566,12 +5741,15 @@ END $$;
             }
 
             if (hasChanges) {
+              DataManager.ensureDataIntegrity(App.state);
               DataManager.saveLocalOnly(App.state);
               App.refreshAllViews();
               if (showToast) {
                 App.showToast(`📥 ซิงค์ข้อมูลจาก Cloud เรียบร้อย (${App.state.invoices?.length || 0} บิล)`, 'success');
               }
             } else if (showToast) {
+              DataManager.ensureDataIntegrity(App.state);
+              App.refreshAllViews();
               App.showToast(`✓ ข้อมูลตรงกับ Cloud เป็นปัจจุบันแล้ว (${App.state.invoices?.length || 0} บิล)`, 'info');
             }
           }
@@ -7483,11 +7661,41 @@ END $$;
       },
 
       updateCustomerDropdowns() {
-        const select = document.getElementById('quickCustomerMatchSelect');
-        if (!select) return;
-        select.innerHTML = this.state.customers.map(c => `
-          <option value="${c.id}">${c.name} (${c.code})</option>
-        `).join('');
+        if (!this.state) return;
+        DataManager.ensureDataIntegrity(this.state);
+
+        const customers = [...(this.state.customers || [])].sort((a, b) => {
+          return (a.name || '').localeCompare(b.name || '', 'th');
+        });
+
+        const quickSelect = document.getElementById('quickCustomerMatchSelect');
+        if (quickSelect) {
+          if (customers.length === 0) {
+            quickSelect.innerHTML = '<option value="">-- ยังไม่มีรายชื่อลูกค้าในระบบ --</option>';
+          } else {
+            quickSelect.innerHTML = '<option value="">-- เลือกลูกค้า / ร้านค้า (' + customers.length + ' ราย) --</option>' +
+              customers.map(c => `
+                <option value="${c.id}">${c.name} (${c.code || '-'})</option>
+              `).join('');
+          }
+        }
+
+        const payCustSelect = document.getElementById('payCustomerSelect');
+        if (payCustSelect) {
+          payCustSelect.innerHTML = '<option value="">-- กรุณาเลือกลูกค้า --</option>' +
+            customers.map(c => `
+              <option value="${c.id}">${c.name} (${c.code || '-'})</option>
+            `).join('');
+        }
+
+        const filterCustSelect = document.getElementById('filterCustomerSelect');
+        if (filterCustSelect) {
+          const currentVal = filterCustSelect.value;
+          filterCustSelect.innerHTML = '<option value="">เลือกลูกค้าทั้งหมด</option>' +
+            customers.map(c => `
+              <option value="${c.id}" ${c.id === currentVal ? 'selected' : ''}>${c.name} (${c.code || '-'})</option>
+            `).join('');
+        }
       },
 
       updateSidebarBadges() {
@@ -10203,7 +10411,12 @@ END $$;
       },
 
       openWithSelectedCustomer() {
-        const custId = document.getElementById('quickCustomerMatchSelect').value;
+        const select = document.getElementById('quickCustomerMatchSelect');
+        const custId = select ? select.value : '';
+        if (!custId) {
+          App.showToast('กรุณาเลือกลูกค้า / ร้านค้า จากรายการ Dropdown ก่อนครับ', 'warning');
+          return;
+        }
         this.open(custId);
       },
 
