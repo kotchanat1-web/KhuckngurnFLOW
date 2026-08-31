@@ -7800,6 +7800,16 @@ END $$;
 
       formatCurrency(num) {
         return '฿' + (Number(num) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      },
+
+      escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
       }
     };
 
@@ -11606,11 +11616,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
       sortOrder: 'DEBT_DESC',
 
       switchTab(tab) {
-        this.activeTab = tab;
-        document.querySelectorAll('.ceo-filter-pill').forEach(b => b.classList.remove('active'));
-        const tabKey = tab.charAt(0) + tab.slice(1).toLowerCase();
-        const activeBtn = document.getElementById('pillCeo' + tabKey);
-        if (activeBtn) activeBtn.classList.add('active');
+        this.activeTab = (tab || 'WAITING').toUpperCase();
         this.render();
       },
 
@@ -11654,6 +11660,18 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
       render() {
         this.populateFilterOptions();
 
+        // 0. Sync Active Tab Pill Class in UI
+        document.querySelectorAll('.ceo-filter-pill').forEach(b => b.classList.remove('active'));
+        const tabPillMap = {
+          'WAITING': 'pillCeoWaiting',
+          'OUTSTANDING': 'pillCeoOutstanding',
+          'OVERDUE': 'pillCeoOverdue',
+          'ALL': 'pillCeoAll',
+          'PAID': 'pillCeoPaid'
+        };
+        const currentActivePill = document.getElementById(tabPillMap[this.activeTab] || 'pillCeoWaiting');
+        if (currentActivePill) currentActivePill.classList.add('active');
+
         const allInvoices = App.state.invoices || [];
         const customers = App.state.customers || [];
         const todayStr = App.getLocalDateStr();
@@ -11676,16 +11694,14 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           if (inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED') {
             waitingCount++;
             waitingAmount += (paidAmt || totalAmt);
-          }
-          if (inv.status === 'PAID') {
+          } else if (inv.status === 'PAID') {
             paidCount++;
             paidAmount += paidAmt;
-          }
-          if (inv.status === 'UNPAID' || inv.status === 'PARTIAL' || debtAmt > 0) {
+          } else if ((inv.status === 'UNPAID' || inv.status === 'PARTIAL') && debtAmt > 0) {
             outstandingCount++;
             outstandingAmount += debtAmt;
 
-            if (inv.due_date && inv.due_date < todayStr && debtAmt > 0) {
+            if (inv.due_date && inv.due_date < todayStr) {
               overdueCount++;
               overdueAmount += debtAmt;
             }
@@ -11731,11 +11747,22 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         // 2. Filter Invoices based on Active Tab
         let filtered = allInvoices.filter(inv => {
-          const debt = Math.max(0, (inv.outstanding_amount !== undefined ? parseFloat(inv.outstanding_amount) : (parseFloat(inv.total_amount) || 0) - (parseFloat(inv.paid_amount) || 0)));
-          if (this.activeTab === 'WAITING') return inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED';
-          if (this.activeTab === 'OUTSTANDING') return (inv.status === 'UNPAID' || inv.status === 'PARTIAL' || debt > 0);
-          if (this.activeTab === 'OVERDUE') return debt > 0 && inv.due_date && inv.due_date < todayStr;
-          if (this.activeTab === 'PAID') return inv.status === 'PAID';
+          const totalAmt = parseFloat(inv.total_amount) || 0;
+          const paidAmt = parseFloat(inv.paid_amount) || 0;
+          const debt = Math.max(0, (inv.outstanding_amount !== undefined ? parseFloat(inv.outstanding_amount) : totalAmt - paidAmt));
+
+          if (this.activeTab === 'WAITING') {
+            return inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED';
+          }
+          if (this.activeTab === 'OUTSTANDING') {
+            return (inv.status === 'UNPAID' || inv.status === 'PARTIAL') && debt > 0;
+          }
+          if (this.activeTab === 'OVERDUE') {
+            return debt > 0 && inv.due_date && inv.due_date < todayStr && inv.status !== 'PAID' && inv.status !== 'WAITING_APPROVAL';
+          }
+          if (this.activeTab === 'PAID') {
+            return inv.status === 'PAID';
+          }
           return true; // 'ALL'
         });
 
@@ -11804,7 +11831,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         tbody.innerHTML = filtered.map(inv => {
           const cust = customers.find(c => c.id === inv.customer_id) || { name: '-', code: '-' };
           const debtAmt = Math.max(0, (inv.outstanding_amount !== undefined ? parseFloat(inv.outstanding_amount) : (parseFloat(inv.total_amount) || 0) - (parseFloat(inv.paid_amount) || 0)));
-          const isOverdue = debtAmt > 0 && inv.due_date && inv.due_date < todayStr;
+          const isOverdue = debtAmt > 0 && inv.due_date && inv.due_date < todayStr && inv.status !== 'PAID' && inv.status !== 'WAITING_APPROVAL';
           
           let overdueBadge = '';
           if (isOverdue) {
@@ -11815,7 +11842,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           }
 
           let statusBadge = '<span class="badge badge-unpaid">🔴 ค้างชำระ</span>';
-          if (inv.status === 'PAID' || (debtAmt <= 0 && inv.status !== 'TRANSFERRED')) statusBadge = '<span class="badge badge-paid">✓ ปิดบิลแล้ว</span>';
+          if (inv.status === 'PAID' || (debtAmt <= 0 && inv.status !== 'TRANSFERRED' && inv.status !== 'WAITING_APPROVAL')) statusBadge = '<span class="badge badge-paid">✓ ปิดบิลแล้ว</span>';
           else if (inv.status === 'TRANSFERRED') statusBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">🔄 ส่งต่อ (รอ CEO ประเมิน)</span>';
           else if (inv.status === 'WAITING_APPROVAL') statusBadge = '<span class="badge badge-waiting">⏳ ชำระครบรอตรวจ</span>';
           else if (inv.status === 'PARTIAL') statusBadge = '<span class="badge badge-partial">🟡 ชำระบางส่วน</span>';
