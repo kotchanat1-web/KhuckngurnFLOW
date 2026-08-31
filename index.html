@@ -5372,6 +5372,29 @@ END $$;
             }))).then(() => {}).catch(() => {});
           }
 
+          if (cleanState.payment_allocations && cleanState.payment_allocations.length > 0) {
+            this.client.from('payment_allocations').upsert(cleanState.payment_allocations.map(a => ({
+              id: a.id,
+              payment_id: a.payment_id || '',
+              invoice_id: a.invoice_id || '',
+              allocated_amount: Number(a.allocated_amount || 0),
+              updated_at: nowIso
+            }))).then(() => {}).catch(() => {});
+          }
+
+          if (cleanState.audit_logs && cleanState.audit_logs.length > 0) {
+            // Keep latest 100 logs in individual table
+            this.client.from('audit_logs').upsert(cleanState.audit_logs.slice(0, 100).map(l => ({
+              id: l.id,
+              timestamp: String(l.timestamp || ''),
+              user_name: l.user || l.user_name || '',
+              action: l.action || '',
+              table_name: l.table_name || '',
+              record_id: l.record_id || '',
+              detail: l.detail || ''
+            }))).then(() => {}).catch(() => {});
+          }
+
           this.lastSyncTime = new Date();
           this.isSyncing = false;
           this.updateStatusBadge('connected', `ซิงค์แล้ว (${this.formatTime(this.lastSyncTime)})`);
