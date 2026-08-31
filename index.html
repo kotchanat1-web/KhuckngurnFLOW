@@ -2118,7 +2118,7 @@
       </a>
 
       <!-- 2 Core Operations for Staff -->
-      <div class="nav-category">2 ฟังก์ชันหลัก (พนักงาน)</div>
+      <div class="nav-category" id="navCategoryStaff">2 ฟังก์ชันหลัก (พนักงาน)</div>
 
       <!-- Operation 1: Invoices -->
       <a class="nav-item" id="nav-invoices" onclick="Router.navigate('invoices')">
@@ -2202,7 +2202,7 @@
 
       <div class="header-right">
         <!-- Supabase Cloud Sync Status Badge -->
-        <div id="cloudSyncStatusBadge" class="cloud-sync-badge" onclick="Router.navigate('settings')" title="สถานะการเชื่อมต่อ Supabase Cloud Database (คลิกเพื่อตั้งค่า)" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 600; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; transition: all 0.2s ease;">
+        <div id="cloudSyncStatusBadge" class="cloud-sync-badge" onclick="if(typeof SupabaseSync !== 'undefined' && SupabaseSync.hasMissingTables){SupabaseSync.showSqlSchemaModal();}else{Router.navigate('settings');}" title="สถานะการเชื่อมต่อ Supabase Cloud Database (คลิกเพื่อตั้งค่า / ตรวจสอบ)" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 600; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; transition: all 0.2s ease;">
           <span class="sync-dot" id="cloudSyncDot" style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
           <span id="cloudSyncStatusText">Supabase Realtime</span>
         </div>
@@ -2570,6 +2570,7 @@
               <button class="status-btn" onclick="InvoiceView.setStatusFilter('UNPAID', this)">🔴 ยังไม่ชำระ</button>
               <button class="status-btn" onclick="InvoiceView.setStatusFilter('PARTIAL', this)">🟡 ชำระบางส่วน</button>
               <button class="status-btn" onclick="InvoiceView.setStatusFilter('PAID', this)">🟢 ปิดบิลสมบูรณ์</button>
+              <button class="status-btn" onclick="InvoiceView.setStatusFilter('TRANSFERRED', this)">🔄 ส่งต่อ/หน้าร้าน</button>
             </div>
           </div>
 
@@ -3427,24 +3428,111 @@
             </div>
           </div>
 
-          <!-- Account PINs -->
+          <!-- Account PINs & Sales Staff Security Hub -->
           <div
-            style="background: var(--bg-surface-elevated); padding: 18px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--border-color);">
-            <label class="form-label" style="font-size: 14px; font-weight: 700; color: var(--text-primary);">
-              🔐 บัญชีและรหัส PIN เข้าถึงระบบ
-            </label>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">รหัส PIN บัญชี CEO (Dashboard + อนุมัติบิล)</label>
-                <input type="text" class="form-input font-mono" value="9999" readonly
-                  style="color: var(--primary); font-weight: 700;">
+            style="background: var(--bg-surface-elevated); padding: 20px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1.5px solid rgba(139, 92, 246, 0.35); box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 15px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; gap: 8px;">
+                  <span>🔐</span> <span>ระบบความปลอดภัย, รหัส PIN & บัญชีพนักงานขาย</span>
+                </label>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 0;">
+                  รหัสผ่านถูกซ่อนเป็นความลับ • การแก้ไขรหัสผ่านหรือเพิ่มพนักงานขายจำเป็นต้องยืนยันสิทธิ์ด้วยรหัส Admin
+                </p>
               </div>
-              <div class="form-group">
-                <label class="form-label">รหัส PIN บัญชีพนักงาน (Staff บันทึกบิล/รับเงิน)</label>
-                <input type="text" class="form-input font-mono" value="1234" readonly
-                  style="color: var(--accent-blue); font-weight: 700;">
+
+              <div id="accountSecurityLockBadge">
+                <!-- Dynamically populated badge -->
               </div>
             </div>
+
+            <!-- Admin Authentication Shield (Shown when locked) -->
+            <div id="adminUnlockPromptCard" style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">🛡️</span>
+                <div>
+                  <div style="font-weight: 700; font-size: 13px; color: var(--text-primary);">พื้นที่ควบคุมระดับสูง (Admin Protected Area)</div>
+                  <div style="font-size: 11.5px; color: var(--text-muted);">กรุณากรอกรหัสผ่าน Admin เพื่อปลดล็อกการแก้ไขรหัส PIN และจัดการข้อมูลพนักงานขาย</div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="AccountSecurity.openUnlockModal()" style="background: #8b5cf6; border-color: #8b5cf6; padding: 6px 14px; font-size: 12px;">
+                <span>🔑 ยืนยันรหัส Admin เพื่อปลดล็อค</span>
+              </button>
+            </div>
+
+            <!-- System Role PINs Section -->
+            <div style="margin-bottom: 20px;">
+              <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <span>👑</span> <span>รหัสผ่าน PIN ประจำระดับสิทธิ์หลัก (Admin & CEO)</span>
+              </div>
+              <div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+                
+                <!-- Admin PIN -->
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 12px;">👑 รหัส PIN บัญชี Admin (แก้ไข/ลบบิล/จัดการระบบ)</label>
+                  <div style="position: relative;">
+                    <input type="password" class="form-input font-mono" id="cfgAdminPinInput" placeholder="••••" maxlength="10" readonly
+                      style="letter-spacing: 4px; font-size: 14px; font-weight: 700; color: #a78bfa; padding-right: 38px; background: rgba(139, 92, 246, 0.06);">
+                    <button type="button" class="btn-eye-toggle" onclick="AccountSecurity.togglePinVisibility('cfgAdminPinInput', this)" title="แสดง/ซ่อนรหัส PIN" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-muted);">👁️</button>
+                  </div>
+                </div>
+
+                <!-- CEO PIN -->
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 12px;">📊 รหัส PIN บัญชี CEO (Dashboard + อนุมัติปิดบิล)</label>
+                  <div style="position: relative;">
+                    <input type="password" class="form-input font-mono" id="cfgCeoPinInput" placeholder="••••" maxlength="10" readonly
+                      style="letter-spacing: 4px; font-size: 14px; font-weight: 700; color: var(--primary); padding-right: 38px; background: rgba(16, 185, 129, 0.06);">
+                    <button type="button" class="btn-eye-toggle" onclick="AccountSecurity.togglePinVisibility('cfgCeoPinInput', this)" title="แสดง/ซ่อนรหัส PIN" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-muted);">👁️</button>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Button to save system pins (Enabled when unlocked) -->
+              <div id="saveSystemPinsBtnBox" style="display: none; margin-top: 12px; text-align: right;">
+                <button type="button" class="btn btn-secondary" style="padding: 5px 14px; font-size: 12px; border-color: rgba(139, 92, 246, 0.5); color: #a78bfa;" onclick="AccountSecurity.saveSystemPins()">
+                  <span>💾 บันทึกการเปลี่ยนรหัส PIN (Admin & CEO)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Sales Staff Management Section -->
+            <div style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <div style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <span>👥</span> <span>รายชื่อพนักงานขาย / รถส่งของ & รหัส PIN ประจำตัว</span>
+                  </div>
+                  <div style="font-size: 11.5px; color: var(--text-muted);">
+                    กำหนดชื่อพนักงานขาย, สายส่ง/รถประจำ และรหัสผ่านเข้าใช้งานระบบสำหรับพนักงานแต่ละคน
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary" id="btnAddStaffBtn" onclick="AccountSecurity.openAddStaffModal()" disabled style="padding: 5px 12px; font-size: 12px;">
+                  <span>➕ เพิ่มพนักงานขาย (+ Add Staff)</span>
+                </button>
+              </div>
+
+              <!-- Sales Staff Table -->
+              <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                <table class="data-table" style="font-size: 12.5px;">
+                  <thead>
+                    <tr>
+                      <th>ชื่อพนักงานขาย</th>
+                      <th>สายส่ง / รถประจำ</th>
+                      <th>เบอร์โทรศัพท์</th>
+                      <th>รหัส PIN</th>
+                      <th style="text-align: center; width: 110px;">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="salesStaffTableBody">
+                    <!-- Rendered by AccountSecurity.renderSalesStaffList() -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
 
           <div
@@ -3630,10 +3718,10 @@
             </div>
           </div>
 
-          <!-- Proof Image Upload Section (Mandatory for Slip/Cheque) -->
+          <!-- Proof Image Upload Section (Mandatory for Transfer) -->
           <div id="payProofSection" class="form-group" style="margin-top: 10px;">
-            <label class="form-label" style="display: flex; justify-content: space-between;">
-              <span>📷 ไฟล์ภาพหลักฐานสลิปโอนเงิน / เช็ค (Proof Attachment)</span>
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <span>📷 ไฟล์ภาพหลักฐานสลิปโอนเงิน / เช็ค <span id="payProofRequiredLabel"><span style="color: #ef4444; font-weight: 700;">* จำเป็นต้องแนบรูปสลิป</span></span></span>
               <span style="font-size: 11px; color: var(--primary);">* จัดเก็บถาวรสำหรับ CEO ตรวจสอบ</span>
             </label>
             <div class="proof-attachment-box" id="proofDropzone">
@@ -3858,14 +3946,18 @@
           กรุณาเลือกระดับสิทธิ์และกรอกรหัส PIN ประจำตัว
         </p>
 
-        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
           <button type="button" class="btn btn-primary" id="btnRoleCeo" onclick="AuthModal.selectRole('CEO')"
-            style="flex: 1;">
-            👑 คุณศุภรัตน์ (CEO)
+            style="flex: 1; min-width: 100px; font-size: 11.5px; padding: 7px 4px;">
+            👑 CEO (ผู้บริหาร)
           </button>
           <button type="button" class="btn btn-secondary" id="btnRoleStaff" onclick="AuthModal.selectRole('STAFF')"
-            style="flex: 1;">
-            👤 พนักงานฝ่ายขาย
+            style="flex: 1; min-width: 100px; font-size: 11.5px; padding: 7px 4px;">
+            👤 พนักงานขาย
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnRoleAdmin" onclick="AuthModal.selectRole('ADMIN')"
+            style="flex: 1; min-width: 100px; font-size: 11.5px; padding: 7px 4px;">
+            ⚡ Admin (ผู้ดูแลระบบ)
           </button>
         </div>
 
@@ -4027,6 +4119,346 @@
     </div>
   </div>
 
+  <!-- ==========================================================================
+       MODAL 10: SUPABASE CLOUD DATABASE SETUP & SQL SCHEMA HEALTH WIZARD
+       ========================================================================== -->
+  <div class="modal-backdrop" id="sqlSchemaModal">
+    <div class="modal-dialog modal-dialog-large" style="max-width: 860px; width: 95vw;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">⚡</span>
+          <div>
+            <div class="modal-title" style="font-size: 16px;">ตั้งค่า Supabase Cloud Database & Realtime Sync</div>
+            <div style="font-size: 12px; color: var(--text-muted);">สร้างตารางฐานข้อมูลส่วนกลางเพื่อซิงค์ข้อมูลทุกเครื่องแบบอัตโนมัติ</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="SupabaseSync.closeSqlSchemaModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 24px;">
+        
+        <!-- Table Health Check Card -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <div style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+              <span>📊 สถานะตารางในฐานข้อมูล Supabase</span>
+            </div>
+            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11.5px;" onclick="SupabaseSync.runHealthCheckUI()">
+              <span>🔄 ตรวจสอบตารางเดี๋ยวนี้</span>
+            </button>
+          </div>
+          <div id="schemaHealthGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;">
+            <div style="color: var(--text-muted); font-size: 12px;">กำลังตรวจสอบ...</div>
+          </div>
+        </div>
+
+        <!-- 3-Step Setup Instructions -->
+        <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 18px;">
+          <div style="font-weight: 700; font-size: 13.5px; color: #60a5fa; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🚀 วิธีติดตั้งตารางใน 3 ขั้นตอนง่ายๆ (ทำเพียงครั้งเดียว):</span>
+          </div>
+          <ol style="margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.7;">
+            <li>คลิกปุ่มสีเขียว <strong>"📋 คัดลอกคำสั่ง SQL ทั้งหมด"</strong> ด้านล่าง</li>
+            <li>กดปุ่ม <strong>"🌐 เปิด Supabase SQL Editor"</strong> เพื่อไปยังหน้า SQL Editor ของ Supabase Dashboard</li>
+            <li><strong>วางคำสั่ง SQL (Paste / Ctrl+V)</strong> ลงในช่อง แล้วกดปุ่ม <strong>Run</strong> สีเขียว</li>
+          </ol>
+        </div>
+
+        <!-- SQL Code Display Box -->
+        <div class="form-group" style="margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="font-size: 12px; margin-bottom: 0;">คำสั่ง SQL (SQL Schema Script)</label>
+            <span style="font-size: 11px; color: var(--text-muted);">ตาราง: customers, invoices, payments, allocations, bank accounts, audit logs, backup</span>
+          </div>
+          <textarea id="sqlSchemaTextarea" class="form-input font-mono" readonly style="height: 190px; font-size: 11.5px; line-height: 1.5; background: #0f172a; color: #38bdf8; border-color: #334155; resize: vertical;"></textarea>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-primary" id="btnCopySqlSchema" onclick="SupabaseSync.copySqlToClipboard()" style="background: #10b981; border-color: #10b981;">
+            <span>📋 คัดลอกคำสั่ง SQL ทั้งหมด</span>
+          </button>
+          <a id="btnOpenSupabaseSqlEditor" href="https://supabase.com/dashboard/project/fccnkzdjkeboaxvlvyyx/sql/new" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+            <span>🌐 เปิด Supabase SQL Editor ↗</span>
+          </a>
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="SupabaseSync.closeSqlSchemaModal()">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 11: ADMIN INVOICE EDIT MODAL (EXCLUSIVE FOR ADMIN)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="invoiceEditModal">
+    <div class="modal-dialog" style="max-width: 620px; width: 95vw;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">✏️ แก้ไขข้อมูลบิลขาย (Admin Only)</div>
+          <div style="font-size: 12px; color: var(--text-muted);" id="editModalSubTitle">ปรับปรุงรายละเอียดบิลขายในระบบ</div>
+        </div>
+        <button class="modal-close-btn" onclick="InvoiceEditModal.close()">✕</button>
+      </div>
+      <form onsubmit="event.preventDefault(); InvoiceEditModal.save();">
+        <div class="modal-body">
+          <input type="hidden" id="editInvId">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">เลขที่บิล (IV Number) *</label>
+              <input type="text" id="editIvNumber" class="form-input font-mono" required style="font-weight: 700; color: var(--primary);">
+            </div>
+            <div class="form-group">
+              <label class="form-label">ประเภทเอกสาร</label>
+              <input type="text" id="editDocType" class="form-input" placeholder="เช่น ใบส่งของชั่วคราว / ใบกำกับภาษี">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">วันที่ออกบิล *</label>
+              <input type="date" id="editInvoiceDate" class="form-input font-mono" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">วันครบกำหนดชำระ (Due Date)</label>
+              <input type="date" id="editDueDate" class="form-input font-mono">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">ลูกค้า / ร้านค้า *</label>
+            <select id="editCustomerId" class="form-select" required></select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">สายส่ง / ทะเบียนรถ</label>
+              <input type="text" id="editDeliveryVehicle" class="form-input" placeholder="เช่น 2ฒฮ 5988 กทม">
+            </div>
+            <div class="form-group">
+              <label class="form-label">สถานะบิล (Status) *</label>
+              <select id="editStatus" class="form-select font-mono" required>
+                <option value="UNPAID">🔴 UNPAID (ยังไม่ชำระ)</option>
+                <option value="PARTIAL">🟡 PARTIAL (ชำระบางส่วน)</option>
+                <option value="WAITING_APPROVAL">⏳ WAITING_APPROVAL (ชำระครบรอ CEO ตรวจ)</option>
+                <option value="PAID">🟢 PAID (ปิดบิลสมบูรณ์)</option>
+                <option value="OVERPAID">🟣 OVERPAID (ชำระเกิน)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 6px;">
+            <div class="form-group">
+              <label class="form-label">ยอดรวมบิลสุทธิ (Total Amount) *</label>
+              <input type="number" step="0.01" id="editTotalAmount" class="form-input font-mono" required style="font-weight: 700; font-size: 16px;" oninput="InvoiceEditModal.calcOutstanding()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">ยอดชำระแล้ว (Paid Amount) *</label>
+              <input type="number" step="0.01" id="editPaidAmount" class="form-input font-mono text-emerald" required style="font-weight: 700; font-size: 16px;" oninput="InvoiceEditModal.calcOutstanding()">
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-sm); margin-top: 10px; border: 1px solid rgba(239, 68, 68, 0.25);">
+            <span style="font-size: 12px; color: var(--text-muted);">ยอดหนี้คงค้างคำนวณอัตโนมัติ:</span>
+            <strong class="font-mono text-rose" style="font-size: 15px;" id="editOutstandingPreview">฿0.00</strong>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="InvoiceEditModal.close()">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">
+            <span>💾 บันทึกการแก้ไขบิล</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: INVOICE STOREFRONT TRANSFER & MULTI-STORE RE-SALE MODAL
+       ========================================================================== -->
+  <div class="modal-backdrop" id="invoiceTransferModal">
+    <div class="modal-dialog modal-dialog-large" style="max-width: 780px; width: 95vw;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+            <span>🔄</span> <span>ย้ายบิลเป็นขายหน้าร้าน / ส่งต่อแบ่งขายให้ร้านอื่น</span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted);">
+            กรณีสินค้าติดปัญหาระหว่างส่ง หรือลูกค้าเดิมไม่รับ สามารถโอนขายหน้าร้านหรือแบ่งขายต่อให้ร้านอื่นได้
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="InvoiceTransferModal.close()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- 1. Original Invoice Info Card -->
+        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%); border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px dashed var(--border-subtle); padding-bottom: 8px; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-weight: 700; font-size: 11.5px;">
+                📦 บิลต้นทาง (Original IV)
+              </span>
+              <strong class="font-mono text-emerald" style="font-size: 16px;" id="transferOrigIvNumber">-</strong>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary);">
+              วันที่บิล: <strong id="transferOrigDate" class="font-mono">-</strong> • 🚛 <span id="transferOrigVehicle">-</span>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <div style="font-size: 11.5px; color: var(--text-muted);">ลูกค้าเดิมตามบิล:</div>
+              <div style="font-size: 14px; font-weight: 700; color: var(--text-primary);" id="transferOrigCustName">-</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 11.5px; color: var(--text-muted);">ยอดบิลสุทธิคงเหลือที่ต้องส่งต่อ</div>
+              <div class="font-mono font-weight: 800 text-rose" style="font-size: 18px;" id="transferOrigAmount">฿0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Destination Stores / Storefront Splitting Section -->
+        <div class="form-group" style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+              <span>🏪</span> <span>กำหนดร้านค้าที่รับซื้อต่อ / ขายหน้าร้าน (ระบุได้หลายร้าน)</span>
+            </label>
+            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11.5px; color: var(--primary); border-color: rgba(16, 185, 129, 0.4);" onclick="InvoiceTransferModal.addRow()">
+              <span>➕ เพิ่มร้านรับซื้อต่อ (+ Add Store)</span>
+            </button>
+          </div>
+
+          <div id="transferDestinationsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 260px; overflow-y: auto; padding-right: 4px;">
+            <!-- Rendered Destination Rows -->
+          </div>
+        </div>
+
+        <!-- 3. Realtime Allocation Balance HUD -->
+        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 10px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; text-align: center;">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted);">ยอดบิลเดิมทั้งหมด</div>
+              <div class="font-mono font-weight: 700" style="font-size: 15px; color: var(--text-secondary);" id="transferHudOrigTotal">฿0.00</div>
+            </div>
+            <div style="border-left: 1px solid var(--border-subtle); border-right: 1px solid var(--border-subtle);">
+              <div style="font-size: 11px; color: var(--text-muted);">รวมยอดที่จัดสรรให้ร้านใหม่</div>
+              <div class="font-mono font-weight: 800 text-emerald" style="font-size: 15px;" id="transferHudAllocatedTotal">฿0.00</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted);">ยอดคงเหลือที่ยังไม่แบ่ง</div>
+              <div class="font-mono font-weight: 800" style="font-size: 15px;" id="transferHudRemaining">฿0.00</div>
+            </div>
+          </div>
+          <div id="transferDiscrepancyNotice" style="display: none; margin-top: 8px; font-size: 11.5px; padding: 6px 10px; border-radius: 4px;"></div>
+        </div>
+
+        <!-- 4. Notes & Operational Reason -->
+        <div class="form-group" style="margin-top: 14px;">
+          <label class="form-label">สาเหตุหรือหมายเหตุการส่งต่อ (เหตุผลที่ลูกค้ารายเดิมไม่รับสินค้า)</label>
+          <input type="text" class="form-input" id="transferReasonInput" placeholder="เช่น ลูกค้าปิดร้านชั่วคราว, เปลี่ยนใจไม่รับสินค้า, จัดส่งไม่ทัน จึงนำมาขายหน้าร้าน">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="InvoiceTransferModal.close()">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" onclick="InvoiceTransferModal.confirmTransfer()">
+          <span>✓ ยืนยันการส่งต่อบิล / ย้ายขายหน้าร้าน</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 13: ADMIN PIN VERIFICATION PROMPT MODAL
+       ========================================================================== -->
+  <div class="modal-backdrop" id="adminVerifyModal">
+    <div class="modal-dialog" style="max-width: 400px;">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+          <span>🛡️</span> <span>ยืนยันรหัสผ่าน Admin</span>
+        </div>
+        <button class="modal-close-btn" onclick="AccountSecurity.closeUnlockModal()">✕</button>
+      </div>
+      <div class="modal-body" style="text-align: center;">
+        <div style="font-size: 36px; margin-bottom: 8px;">👑</div>
+        <div style="font-weight: 700; font-size: 14.5px; color: var(--text-primary); margin-bottom: 4px;">
+          การดำเนินการนี้จำเป็นต้องใช้สิทธิ์ Admin
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+          กรุณากรอกรหัส PIN ประจำตัวผู้ดูแลระบบ (Admin PIN) เพื่อดำเนินการต่อ
+        </p>
+
+        <div class="form-group" style="margin-bottom: 10px;">
+          <input type="password" maxlength="10" class="form-input font-mono" id="adminVerifyPinInput" placeholder="••••"
+            style="letter-spacing: 12px; font-size: 26px; text-align: center; color: #a78bfa;" autofocus
+            onkeyup="if(event.key==='Enter') AccountSecurity.verifyAdminPin()">
+        </div>
+
+        <p id="adminVerifyErrorMsg"
+          style="color: var(--status-unpaid); font-size: 12px; font-weight: 600; display: none; margin-top: 4px;">
+          ❌ รหัสผ่าน Admin ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง
+        </p>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between;">
+        <button type="button" class="btn btn-secondary" onclick="AccountSecurity.closeUnlockModal()">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" onclick="AccountSecurity.verifyAdminPin()" style="background: #8b5cf6; border-color: #8b5cf6;">
+          <span>🔓 ยืนยันปลดล็อค</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 14: SALESPERSON ADD / EDIT MODAL
+       ========================================================================== -->
+  <div class="modal-backdrop" id="salespersonModal">
+    <div class="modal-dialog" style="max-width: 480px; width: 95vw;">
+      <div class="modal-header">
+        <div class="modal-title" id="salespersonModalTitle" style="display: flex; align-items: center; gap: 8px;">
+          <span>👤</span> <span>เพิ่มข้อมูลพนักงานขาย</span>
+        </div>
+        <button class="modal-close-btn" onclick="AccountSecurity.closeStaffModal()">✕</button>
+      </div>
+      <form onsubmit="event.preventDefault(); AccountSecurity.saveStaff();">
+        <div class="modal-body">
+          <input type="hidden" id="staffEditId">
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label">ชื่อ-นามสกุล หรือ ชื่อเล่นพนักงานขาย *</label>
+            <input type="text" id="staffNameInput" class="form-input" placeholder="เช่น สมชาย (สายส่ง 1) หรือ พนักงานหน้าร้าน" required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label">สายส่ง / ทะเบียนรถประจำ *</label>
+            <input type="text" id="staffVehicleInput" class="form-input" placeholder="เช่น 70-4921 กทม. (รถ 4 ล้อใหญ่) หรือ หน้าร้าน" required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label">เบอร์โทรศัพท์ติดต่อ</label>
+            <input type="tel" id="staffPhoneInput" class="form-input font-mono" placeholder="เช่น 081-234-5678">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="form-label">รหัส PIN เข้าใช้งานระบบ (4-6 ตัวอักษร/ตัวเลข) *</label>
+            <div style="position: relative;">
+              <input type="password" id="staffPinInput" class="form-input font-mono" placeholder="••••" maxlength="10" required
+                style="letter-spacing: 4px; font-size: 15px; font-weight: 700; color: var(--accent-blue); padding-right: 38px;">
+              <button type="button" class="btn-eye-toggle" onclick="AccountSecurity.togglePinVisibility('staffPinInput', this)" title="แสดง/ซ่อนรหัส PIN" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-muted);">👁️</button>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+              พนักงานจะใช้รหัส PIN นี้ในการเข้าสู่ระบบเพื่อบันทึกบิลและเก็บเงิน
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+          <button type="button" class="btn btn-secondary" onclick="AccountSecurity.closeStaffModal()">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">
+            <span>💾 บันทึกข้อมูลพนักงาน</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toastContainer"></div>
 
@@ -4114,9 +4546,18 @@
 
       getInitialData() {
         return {
-          currentUserRole: null, // null until authenticated via Login PIN (CEO: 9999, STAFF: 1234)
+          currentUserRole: null, // null until authenticated via Login PIN (CEO: 9999, STAFF: 1234, ADMIN: 0318)
           fontSize: 'normal', // Default to 100% (Normal Standard)
           geminiApiKey: '',
+          adminPin: '0318', // Default Admin PIN (Configurable in Settings)
+          ceoPin: '9999',   // Default CEO PIN (Configurable in Settings)
+          staffPin: '1234', // Default General Staff PIN
+          salespersons: [
+            { id: 'STAFF-01', name: 'พนักงานฝ่ายขาย (ทั่วไป)', pin: '1234', vehicle: 'ทุกคัน / ทั่วไป', phone: '081-234-5678', is_active: true },
+            { id: 'STAFF-02', name: 'สมชาย พนักงานส่งของ', pin: '1101', vehicle: '70-4921 กทม. (รถ 4 ล้อใหญ่)', phone: '089-111-2222', is_active: true },
+            { id: 'STAFF-03', name: 'สมศักดิ์ พนักงานส่งของ', pin: '1102', vehicle: '71-8842 กทม. (รถ 6 ล้อตู้)', phone: '086-333-4444', is_active: true },
+            { id: 'STAFF-04', name: 'วิชัย พนักงานส่งของ', pin: '1103', vehicle: '72-1109 นนทบุรี', phone: '081-555-6666', is_active: true }
+          ],
           companyBankAccounts: [], // User-configurable in Settings / Dynamic from actual payments
           customers: [],
           invoices: [],
@@ -4136,6 +4577,19 @@
         if (!state) {
           state = this.getInitialData();
           this.save(state);
+        }
+
+        // Ensure backward compatibility defaults
+        if (!state.adminPin) state.adminPin = '0318';
+        if (!state.ceoPin) state.ceoPin = '9999';
+        if (!state.staffPin) state.staffPin = '1234';
+        if (!Array.isArray(state.salespersons) || state.salespersons.length === 0) {
+          state.salespersons = [
+            { id: 'STAFF-01', name: 'พนักงานฝ่ายขาย (ทั่วไป)', pin: '1234', vehicle: 'ทุกคัน / ทั่วไป', phone: '081-234-5678', is_active: true },
+            { id: 'STAFF-02', name: 'สมชาย พนักงานส่งของ', pin: '1101', vehicle: '70-4921 กทม. (รถ 4 ล้อใหญ่)', phone: '089-111-2222', is_active: true },
+            { id: 'STAFF-03', name: 'สมศักดิ์ พนักงานส่งของ', pin: '1102', vehicle: '71-8842 กทม. (รถ 6 ล้อตู้)', phone: '086-333-4444', is_active: true },
+            { id: 'STAFF-04', name: 'วิชัย พนักงานส่งของ', pin: '1103', vehicle: '72-1109 นนทบุรี', phone: '081-555-6666', is_active: true }
+          ];
         }
         // Asynchronously hydrate from IndexedDB if higher-resolution attachments exist
         IDBStateStore.get(this.STORAGE_KEY).then(idbState => {
@@ -4223,12 +4677,218 @@
       autoSync: true
     };
 
+    const SUPABASE_SCHEMA_SQL = `-- ============================================================================
+-- Khuckngurn Flow (กวักเงิน Flow) - Complete Supabase Database Schema & Realtime Setup
+-- ============================================================================
+-- คำแนะนำ: คัดลอกคำสั่ง SQL ทั้งหมดนี้ไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run
+-- ============================================================================
+
+-- 1. Enable Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 2. CUSTOMERS TABLE (ข้อมูลลูกค้า / ร้านค้า)
+CREATE TABLE IF NOT EXISTS public.customers (
+    id TEXT PRIMARY KEY,
+    code TEXT,
+    name TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. INVOICES TABLE (ข้อมูลบิลขาย / ใบส่งของชั่วคราว)
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id TEXT PRIMARY KEY,
+    iv_number TEXT NOT NULL UNIQUE,
+    doc_type TEXT DEFAULT 'ใบส่งของชั่วคราว',
+    customer_id TEXT,
+    customer_name TEXT,
+    invoice_date TEXT,
+    due_date TEXT,
+    delivery_vehicle TEXT,
+    salesperson TEXT,
+    total_amount NUMERIC(15, 2) DEFAULT 0.00,
+    paid_amount NUMERIC(15, 2) DEFAULT 0.00,
+    outstanding_amount NUMERIC(15, 2) DEFAULT 0.00,
+    status TEXT DEFAULT 'UNPAID',
+    items JSONB DEFAULT '[]'::jsonb,
+    amount_text TEXT,
+    raw_content TEXT,
+    source_file TEXT,
+    slip_data JSONB,
+    approved_by TEXT,
+    approved_at TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. PAYMENTS TABLE (ข้อมูลการรับชำระเงิน)
+CREATE TABLE IF NOT EXISTS public.payments (
+    id TEXT PRIMARY KEY,
+    payment_number TEXT NOT NULL UNIQUE,
+    customer_id TEXT,
+    payment_date TEXT,
+    payment_type TEXT DEFAULT 'TRANSFER',
+    amount NUMERIC(15, 2) DEFAULT 0.00,
+    matched_amount NUMERIC(15, 2) DEFAULT 0.00,
+    unmatched_amount NUMERIC(15, 2) DEFAULT 0.00,
+    reference_number TEXT,
+    bank_account TEXT,
+    note TEXT,
+    slip_data JSONB,
+    matched_invoices JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. PAYMENT ALLOCATIONS TABLE (ข้อมูลการตัดยอดบิล)
+CREATE TABLE IF NOT EXISTS public.payment_allocations (
+    id TEXT PRIMARY KEY,
+    payment_id TEXT,
+    invoice_id TEXT,
+    allocated_amount NUMERIC(15, 2) DEFAULT 0.00,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. COMPANY BANK ACCOUNTS TABLE (บัญชีธนาคารของบริษัท)
+CREATE TABLE IF NOT EXISTS public.company_bank_accounts (
+    id TEXT PRIMARY KEY,
+    bank_code TEXT,
+    bank_name TEXT,
+    account_number TEXT,
+    account_name TEXT,
+    logo_file TEXT,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. AUDIT LOGS TABLE (ประวัติการใช้งานและกิจกรรม)
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT,
+    user_name TEXT,
+    action TEXT,
+    table_name TEXT,
+    record_id TEXT,
+    detail TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. APP STATE FULL BACKUP TABLE (Snapshot Database สำหรับ Sync ทุกเครื่องทันที)
+CREATE TABLE IF NOT EXISTS public.app_state_backup (
+    id TEXT PRIMARY KEY DEFAULT 'main_state',
+    state_data JSONB NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- 9. INDEXES FOR PERFORMANCE
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_invoices_iv_number ON public.invoices (iv_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON public.invoices (customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON public.invoices (status);
+CREATE INDEX IF NOT EXISTS idx_payments_payment_number ON public.payments (payment_number);
+CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON public.payments (customer_id);
+
+-- ============================================================================
+-- 10. ROW LEVEL SECURITY (RLS) POLICIES (Public read & write for Anon Key)
+-- ============================================================================
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_allocations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_bank_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_state_backup ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if any
+DROP POLICY IF EXISTS "Public access for customers" ON public.customers;
+DROP POLICY IF EXISTS "Public access for invoices" ON public.invoices;
+DROP POLICY IF EXISTS "Public access for payments" ON public.payments;
+DROP POLICY IF EXISTS "Public access for payment_allocations" ON public.payment_allocations;
+DROP POLICY IF EXISTS "Public access for company_bank_accounts" ON public.company_bank_accounts;
+DROP POLICY IF EXISTS "Public access for audit_logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Public access for app_state_backup" ON public.app_state_backup;
+
+-- Allow all operations for anon and authenticated roles
+CREATE POLICY "Public access for customers" ON public.customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for invoices" ON public.invoices FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for payments" ON public.payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for payment_allocations" ON public.payment_allocations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for company_bank_accounts" ON public.company_bank_accounts FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for audit_logs" ON public.audit_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for app_state_backup" ON public.app_state_backup FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================================
+-- 11. REPLICA IDENTITY FULL (For reliable realtime change payloads)
+-- ============================================================================
+ALTER TABLE public.customers REPLICA IDENTITY FULL;
+ALTER TABLE public.invoices REPLICA IDENTITY FULL;
+ALTER TABLE public.payments REPLICA IDENTITY FULL;
+ALTER TABLE public.payment_allocations REPLICA IDENTITY FULL;
+ALTER TABLE public.company_bank_accounts REPLICA IDENTITY FULL;
+ALTER TABLE public.audit_logs REPLICA IDENTITY FULL;
+ALTER TABLE public.app_state_backup REPLICA IDENTITY FULL;
+
+-- ============================================================================
+-- 12. REALTIME REPLICATION (Instant Multi-Device Synchronization)
+-- ============================================================================
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        CREATE PUBLICATION supabase_realtime;
+    END IF;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.payments;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.payment_allocations;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.company_bank_accounts;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.app_state_backup;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+END $$;
+`;
+
     const SupabaseSync = {
       client: null,
       isConnected: false,
       isSyncing: false,
+      hasMissingTables: false,
       realtimeChannel: null,
       syncDebounceTimer: null,
+      pendingPushState: null,
+      lastSyncTime: null,
+      listenersAttached: false,
 
       init() {
         const url = localStorage.getItem('khuckngurn_supabase_url') || SUPABASE_DEFAULT_CONFIG.url || '';
@@ -4238,6 +4898,21 @@
         const keyInput = document.getElementById('cfgSupabaseKey');
         if (urlInput && url) urlInput.value = url;
         if (keyInput && key) keyInput.value = key;
+
+        if (!this.listenersAttached) {
+          window.addEventListener('online', () => {
+            console.log('Browser online: reconnecting to Supabase Cloud...');
+            this.testAndConnect(false);
+          });
+          window.addEventListener('offline', () => {
+            console.warn('Browser offline');
+            this.updateStatusBadge('offline', 'ออฟไลน์ (ไม่มีเน็ต)');
+          });
+          window.addEventListener('beforeunload', () => {
+            this.flushPendingPush();
+          });
+          this.listenersAttached = true;
+        }
 
         if (url && key && window.supabase) {
           try {
@@ -4252,7 +4927,14 @@
         }
       },
 
-      updateStatusBadge(status, text) {
+      formatTime(date) {
+        if (!date) return '';
+        const d = new Date(date);
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      },
+
+      updateStatusBadge(status, text, detail) {
         const badge = document.getElementById('cloudSyncStatusBadge');
         const dot = document.getElementById('cloudSyncDot');
         const txt = document.getElementById('cloudSyncStatusText');
@@ -4265,9 +4947,11 @@
           badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
           badge.style.color = '#34d399';
           dot.style.background = '#10b981';
-          txt.innerText = 'Supabase Realtime (Online)';
+          dot.style.animation = 'none';
+          txt.innerText = text || (this.lastSyncTime ? `ซิงค์แล้ว (${this.formatTime(this.lastSyncTime)})` : 'Supabase Realtime (Online)');
+          badge.title = 'สถานะ: เชื่อมต่อ Cloud สมบูรณ์ (คลิกเพื่อตั้งค่า / ดูสถานะ)';
           if (setBadge) {
-            setBadge.innerHTML = '🟢 เชื่อมต่อ Cloud สำเร็จ (Realtime)';
+            setBadge.innerHTML = '🟢 เชื่อมต่อ Cloud สำเร็จ (Realtime Sync)';
             setBadge.style.background = 'rgba(16, 185, 129, 0.15)';
             setBadge.style.color = '#34d399';
           }
@@ -4276,15 +4960,36 @@
           badge.style.borderColor = 'rgba(59, 130, 246, 0.4)';
           badge.style.color = '#60a5fa';
           dot.style.background = '#3b82f6';
-          txt.innerText = 'กำลังซิงค์...';
+          dot.style.animation = 'pulse 1.2s infinite';
+          txt.innerText = text || 'กำลังบันทึกขึ้น Cloud...';
+          if (setBadge) {
+            setBadge.innerHTML = '🔄 กำลังซิงค์ข้อมูล...';
+            setBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+            setBadge.style.color = '#60a5fa';
+          }
+        } else if (status === 'missing_tables') {
+          badge.style.background = 'rgba(245, 158, 11, 0.18)';
+          badge.style.borderColor = 'rgba(245, 158, 11, 0.45)';
+          badge.style.color = '#fbbf24';
+          dot.style.background = '#f59e0b';
+          dot.style.animation = 'none';
+          txt.innerText = text || '⚠️ ตาราง Cloud ยังไม่พร้อม (คลิกเพื่อติดตั้ง)';
+          badge.title = 'ยังไม่ได้รัน SQL Schema ใน Supabase - คลิกเพื่อดูคำสั่ง SQL และวิธีติดตั้ง';
+          if (setBadge) {
+            setBadge.innerHTML = '⚠️ ยังไม่ได้สร้างตารางใน Supabase (คลิกดู SQL)';
+            setBadge.style.background = 'rgba(245, 158, 11, 0.18)';
+            setBadge.style.color = '#fbbf24';
+          }
         } else if (status === 'error') {
           badge.style.background = 'rgba(239, 68, 68, 0.15)';
           badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
           badge.style.color = '#f87171';
           dot.style.background = '#ef4444';
-          txt.innerText = 'Cloud ผิดพลาด';
+          dot.style.animation = 'none';
+          txt.innerText = text || 'Cloud ผิดพลาด';
+          badge.title = 'ไม่สามารถเชื่อมต่อ Supabase ได้ (คลิกเพื่อตรวจสอบ URL / Key)';
           if (setBadge) {
-            setBadge.innerHTML = '🔴 เชื่อมต่อไม่สำเร็จ';
+            setBadge.innerHTML = '🔴 เชื่อมต่อไม่สำเร็จ (ตรวจสอบ Key)';
             setBadge.style.background = 'rgba(239, 68, 68, 0.15)';
             setBadge.style.color = '#f87171';
           }
@@ -4293,7 +4998,8 @@
           badge.style.borderColor = 'rgba(148, 163, 184, 0.25)';
           badge.style.color = '#94a3b8';
           dot.style.background = '#94a3b8';
-          txt.innerText = 'Cloud (Offline / Local)';
+          dot.style.animation = 'none';
+          txt.innerText = text || 'Cloud (Offline / Local)';
           if (setBadge) {
             setBadge.innerHTML = '⚪ โหมดเครื่องเดียว (Local Storage)';
             setBadge.style.background = 'rgba(148, 163, 184, 0.12)';
@@ -4302,25 +5008,142 @@
         }
       },
 
+      async checkSchemaHealth() {
+        if (!this.client) return { ok: false, missingTables: ['client_null'] };
+        const tables = [
+          { name: 'app_state_backup', label: 'Snapshot Backup State' },
+          { name: 'invoices', label: 'บิลขาย (Invoices)' },
+          { name: 'payments', label: 'การรับชำระเงิน (Payments)' },
+          { name: 'payment_allocations', label: 'การตัดยอดบิล (Allocations)' },
+          { name: 'customers', label: 'ข้อมูลลูกค้า (Customers)' },
+          { name: 'company_bank_accounts', label: 'บัญชีธนาคารบริษัท' },
+          { name: 'audit_logs', label: 'ประวัติการใช้งาน (Audit Logs)' }
+        ];
+
+        const results = {};
+        let allOk = true;
+        const missing = [];
+
+        for (const t of tables) {
+          try {
+            const { error } = await this.client.from(t.name).select('id').limit(1);
+            if (error) {
+              if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+                results[t.name] = { exists: false, error: 'Table does not exist' };
+                missing.push(t.name);
+                allOk = false;
+              } else {
+                // Table exists but maybe empty or other non-blocking warning
+                results[t.name] = { exists: true };
+              }
+            } else {
+              results[t.name] = { exists: true };
+            }
+          } catch (err) {
+            results[t.name] = { exists: false, error: err.message };
+            missing.push(t.name);
+            allOk = false;
+          }
+        }
+
+        return {
+          ok: allOk,
+          tables: results,
+          missing: missing
+        };
+      },
+
+      async runHealthCheckUI() {
+        const grid = document.getElementById('schemaHealthGrid');
+        if (!grid) return;
+
+        grid.innerHTML = '<div style="color:var(--text-muted); font-size:12px; grid-column: 1 / -1; padding:8px 0;">🔄 กำลังตรวจสอบโครงสร้างตารางใน Supabase...</div>';
+
+        if (!this.client) {
+          grid.innerHTML = '<div style="color:#ef4444; font-size:12px; grid-column: 1 / -1;">❌ ยังไม่ได้กำหนด Supabase URL หรือ Key</div>';
+          return;
+        }
+
+        const health = await this.checkSchemaHealth();
+        const tableLabels = {
+          'app_state_backup': '⚡ Snapshot State Sync',
+          'invoices': '📑 บิลขาย (Invoices)',
+          'payments': '💳 การชำระเงิน (Payments)',
+          'payment_allocations': '🔗 การตัดยอด (Allocations)',
+          'customers': '👥 ข้อมูลลูกค้า (Customers)',
+          'company_bank_accounts': '🏦 บัญชีธนาคารบริษัท',
+          'audit_logs': '📜 ประวัติการใช้งาน (Audit Logs)'
+        };
+
+        let html = '';
+        Object.keys(tableLabels).forEach(tbl => {
+          const isReady = health.tables && health.tables[tbl]?.exists;
+          html += `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-radius:6px; background:${isReady ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}; border:1px solid ${isReady ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}; font-size:12px;">
+              <span style="font-weight:600; color:var(--text-primary);">${tableLabels[tbl]}</span>
+              <span style="font-weight:700; color:${isReady ? '#34d399' : '#f87171'};">${isReady ? '✅ พร้อมใช้งาน' : '❌ ยังไม่สร้าง'}</span>
+            </div>
+          `;
+        });
+
+        grid.innerHTML = html;
+
+        if (health.ok) {
+          this.isConnected = true;
+          this.hasMissingTables = false;
+          this.updateStatusBadge('connected');
+          App.showToast('🟢 ตาราง Supabase ทั้งหมดพร้อมใช้งานแล้ว', 'success');
+        } else {
+          this.isConnected = false;
+          this.hasMissingTables = true;
+          this.updateStatusBadge('missing_tables');
+        }
+      },
+
       async testAndConnect(showToast = true) {
         if (!this.client) {
           this.updateStatusBadge('offline');
           return;
         }
-        this.updateStatusBadge('syncing');
+        this.updateStatusBadge('syncing', 'กำลังตรวจสอบการเชื่อมต่อ...');
         try {
-          // Test select from customers or app_state_backup
+          // Check if core backup table exists
           const { error } = await this.client.from('app_state_backup').select('id').limit(1);
-          if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
-            console.warn('Supabase test query warning:', error);
+          
+          if (error && (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache') || error.message?.includes('does not exist'))) {
+            console.warn('Supabase tables are not created yet:', error);
+            this.isConnected = false;
+            this.hasMissingTables = true;
+            this.updateStatusBadge('missing_tables', '⚠️ ยังไม่ได้สร้างตาราง Cloud (คลิก)');
+            if (showToast) {
+              App.showToast('⚠️ เชื่อมต่อ Supabase ได้แล้ว แต่ยังไม่ได้รัน SQL สร้างตาราง กรุณาคลิกที่สถานะ Cloud เพื่อดูวิธีติดตั้ง', 'warning');
+            }
+            return;
           }
+
+          if (error && (error.code === 'PGRST301' || error.code === '401' || error.message?.includes('JWT') || error.message?.includes('API key'))) {
+            console.error('Supabase auth error:', error);
+            this.isConnected = false;
+            this.updateStatusBadge('error', 'Supabase Key ไม่ถูกต้อง');
+            if (showToast) App.showToast('❌ Supabase Key ไม่ถูกต้อง กรุณาตรวจสอบในการตั้งค่า', 'error');
+            return;
+          }
+
           this.isConnected = true;
-          this.updateStatusBadge('connected');
+          this.hasMissingTables = false;
+          this.updateStatusBadge('connected', 'Supabase Realtime (Online)');
           if (showToast) App.showToast('🟢 เชื่อมต่อ Supabase Cloud สำเร็จ (Realtime Sync พร้อมใช้งาน)', 'success');
 
           // Pull fresh cloud data & setup realtime subscription
           await this.pullFreshData(false);
           this.subscribeRealtime();
+
+          // Flush any offline pending push
+          if (this.pendingPushState) {
+            const pending = this.pendingPushState;
+            this.pendingPushState = null;
+            this.debouncedPush(pending, true);
+          }
         } catch (e) {
           console.error('Supabase connection failed:', e);
           this.isConnected = false;
@@ -4350,51 +5173,113 @@
         await this.testAndConnect(true);
       },
 
-      async pushAllData(state, silent = true) {
-        if (!this.client || !this.isConnected || !state) return;
+      sanitizeForCloud(state) {
+        if (!state) return {};
         try {
+          const clone = JSON.parse(JSON.stringify(state));
+          
+          // Strip heavy raw base64 data URLs in invoices to prevent HTTP 413 Payload Too Large
+          if (Array.isArray(clone.invoices)) {
+            clone.invoices.forEach(inv => {
+              if (inv.slip_data?.original_file_url && inv.slip_data.original_file_url.length > 20000) {
+                inv.slip_data.original_file_url = null; // Lightweight snapshot
+              }
+              if (inv.slip_data?.all_pages) {
+                // Keep only page numbers metadata, strip full-page huge strings in cloud backup
+                const pageKeys = Object.keys(inv.slip_data.all_pages);
+                if (pageKeys.length > 0) {
+                  inv.slip_data.has_pdf_pages = pageKeys.length;
+                  inv.slip_data.all_pages = null;
+                }
+              }
+            });
+          }
+
+          if (Array.isArray(clone.payments)) {
+            clone.payments.forEach(p => {
+              if (p.slip_data?.original_file_url && p.slip_data.original_file_url.length > 20000) {
+                p.slip_data.original_file_url = null;
+              }
+              if (p.slip_data?.all_pages) {
+                p.slip_data.all_pages = null;
+              }
+            });
+          }
+
+          return clone;
+        } catch (e) {
+          console.warn('Sanitize for cloud fallback:', e);
+          return state;
+        }
+      },
+
+      async pushAllData(state, silent = true) {
+        if (!this.client || !this.isConnected || !state) {
+          if (state && !this.isConnected) {
+            this.pendingPushState = state;
+          }
+          return;
+        }
+
+        this.isSyncing = true;
+        this.updateStatusBadge('syncing', 'กำลังอัปโหลดขึ้น Cloud...');
+
+        try {
+          const cleanState = this.sanitizeForCloud(state);
+          const nowIso = new Date().toISOString();
+
           const snapshot = {
             id: 'main_state',
             state_data: {
-              customers: state.customers || [],
-              invoices: state.invoices || [],
-              payments: state.payments || [],
-              payment_allocations: state.payment_allocations || [],
-              companyBankAccounts: state.companyBankAccounts || [],
-              audit_logs: state.audit_logs || [],
-              updated_at: new Date().toISOString()
+              customers: cleanState.customers || [],
+              invoices: cleanState.invoices || [],
+              payments: cleanState.payments || [],
+              payment_allocations: cleanState.payment_allocations || [],
+              companyBankAccounts: cleanState.companyBankAccounts || [],
+              adminPin: cleanState.adminPin || '0318',
+              ceoPin: cleanState.ceoPin || '9999',
+              staffPin: cleanState.staffPin || '1234',
+              salespersons: cleanState.salespersons || [],
+              audit_logs: cleanState.audit_logs || [],
+              updated_at: nowIso
             },
-            updated_at: new Date().toISOString()
+            updated_at: nowIso
           };
 
-          // 1. Push state snapshot
-          await this.client.from('app_state_backup').upsert(snapshot);
+          // 1. Push state snapshot (Single Source of Truth for Realtime Multi-Device)
+          const { error: snapErr } = await this.client.from('app_state_backup').upsert(snapshot);
+          if (snapErr) {
+            console.error('Error saving app_state_backup:', snapErr);
+            throw snapErr;
+          }
 
-          // 2. Push tables if created
-          if (state.customers && state.customers.length > 0) {
-            await this.client.from('customers').upsert(state.customers.map(c => ({
+          // 2. Safely push structured tables (in background without blocking)
+          if (cleanState.customers && cleanState.customers.length > 0) {
+            this.client.from('customers').upsert(cleanState.customers.map(c => ({
               id: c.id,
               code: c.code,
               name: c.name,
               phone: c.phone || '',
               address: c.address || '',
-              updated_at: new Date().toISOString()
-            }))).catch(() => {});
+              updated_at: nowIso
+            }))).then(() => {}).catch(() => {});
           }
 
-          if (state.invoices && state.invoices.length > 0) {
-            await this.client.from('invoices').upsert(state.invoices.map(inv => ({
+          if (cleanState.invoices && cleanState.invoices.length > 0) {
+            this.client.from('invoices').upsert(cleanState.invoices.map(inv => ({
               id: inv.id,
               iv_number: inv.iv_number,
               doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
               customer_id: inv.customer_id,
-              invoice_date: inv.invoice_date || null,
-              due_date: inv.due_date || null,
-              delivery_vehicle: inv.delivery_vehicle,
-              total_amount: inv.total_amount,
-              paid_amount: inv.paid_amount,
-              outstanding_amount: inv.outstanding_amount,
-              status: inv.status,
+              customer_name: inv.customer_name || '',
+              invoice_date: String(inv.invoice_date || ''),
+              due_date: String(inv.due_date || ''),
+              delivery_vehicle: inv.delivery_vehicle || '',
+              salesperson: inv.salesperson || '',
+              total_amount: Number(inv.total_amount || 0),
+              paid_amount: Number(inv.paid_amount || 0),
+              outstanding_amount: Number(inv.outstanding_amount || 0),
+              status: inv.status || 'UNPAID',
               items: inv.items || [],
               amount_text: inv.amount_text || '',
               raw_content: inv.raw_content || '',
@@ -4402,116 +5287,224 @@
               slip_data: inv.slip_data || null,
               approved_by: inv.approved_by || null,
               approved_at: inv.approved_at || null,
-              updated_at: new Date().toISOString()
-            }))).catch(() => {});
+              updated_at: nowIso
+            }))).then(() => {}).catch(() => {});
           }
 
-          if (state.payments && state.payments.length > 0) {
-            await this.client.from('payments').upsert(state.payments.map(p => ({
+          if (cleanState.payments && cleanState.payments.length > 0) {
+            this.client.from('payments').upsert(cleanState.payments.map(p => ({
               id: p.id,
               payment_number: p.payment_number,
               customer_id: p.customer_id,
-              payment_date: p.payment_date || null,
-              payment_type: p.payment_type,
-              amount: p.amount,
-              matched_amount: p.matched_amount,
-              unmatched_amount: p.unmatched_amount,
+              payment_date: String(p.payment_date || ''),
+              payment_type: p.payment_type || 'TRANSFER',
+              amount: Number(p.amount || 0),
+              matched_amount: Number(p.matched_amount || 0),
+              unmatched_amount: Number(p.unmatched_amount || 0),
               reference_number: p.reference_number || '',
               bank_account: p.bank_account || '',
               note: p.note || '',
               slip_data: p.slip_data || null,
               matched_invoices: p.matched_invoices || [],
-              updated_at: new Date().toISOString()
-            }))).catch(() => {});
+              updated_at: nowIso
+            }))).then(() => {}).catch(() => {});
           }
 
+          if (cleanState.companyBankAccounts && cleanState.companyBankAccounts.length > 0) {
+            this.client.from('company_bank_accounts').upsert(cleanState.companyBankAccounts.map(b => ({
+              id: b.id,
+              bank_code: b.bank_code || '',
+              bank_name: b.bank_name || '',
+              account_number: b.account_number || '',
+              account_name: b.account_name || '',
+              logo_file: b.logo_file || '',
+              is_default: !!b.is_default,
+              updated_at: nowIso
+            }))).then(() => {}).catch(() => {});
+          }
+
+          this.lastSyncTime = new Date();
+          this.isSyncing = false;
+          this.updateStatusBadge('connected', `ซิงค์แล้ว (${this.formatTime(this.lastSyncTime)})`);
+
           if (!silent) {
-            App.showToast('⬆️ ซิงค์ข้อมูลทั้งหมดขึ้น Supabase Cloud สำเร็จ', 'success');
+            App.showToast(`⬆️ ซิงค์ข้อมูลขึ้น Supabase Cloud สำเร็จ (${cleanState.invoices?.length || 0} บิล)`, 'success');
           }
         } catch (err) {
+          this.isSyncing = false;
           console.error('Supabase push error:', err);
-          if (!silent) App.showToast('เกิดข้อผิดพลาดในการซิงค์ขึ้น Cloud', 'error');
+          this.pendingPushState = state;
+          this.updateStatusBadge('error', 'บันทึก Cloud ไม่สำเร็จ');
+          if (!silent) App.showToast('เกิดข้อผิดพลาดในการบันทึกขึ้น Cloud: ' + (err.message || 'โปรดตรวจสอบสัญญาณเน็ต'), 'error');
         }
       },
 
-      debouncedPush(state) {
+      debouncedPush(state, immediate = false) {
+        if (!state) return;
+        this.pendingPushState = state;
         if (!this.client || !this.isConnected) return;
+
+        if (immediate) {
+          if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
+          this.pushAllData(state, true);
+          return;
+        }
+
         if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
         this.syncDebounceTimer = setTimeout(() => {
           this.pushAllData(state, true);
-        }, 1200);
+        }, 350);
       },
 
-      async pullFreshData(showToast = true) {
+      flushPendingPush() {
+        if (this.pendingPushState && this.client && this.isConnected) {
+          this.pushAllData(this.pendingPushState, true);
+        }
+      },
+
+      pullDebounceTimer: null,
+
+      debouncedPull(showToast = false) {
+        if (this.pullDebounceTimer) clearTimeout(this.pullDebounceTimer);
+        this.pullDebounceTimer = setTimeout(() => {
+          this.pullFreshData(showToast);
+        }, 400);
+      },
+
+      async pullFreshData(showToast = false) {
         if (!this.client || !this.isConnected) return;
-        this.updateStatusBadge('syncing');
+        this.updateStatusBadge('syncing', 'กำลังดึงข้อมูลจาก Cloud...');
         try {
           const { data, error } = await this.client.from('app_state_backup').select('state_data').eq('id', 'main_state').single();
           if (data && data.state_data) {
             const cloudState = data.state_data;
-            let merged = false;
+            let hasChanges = false;
 
-            if (Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0) {
-              const currentInvMap = new Map((App.state.invoices || []).map(i => [i.iv_number, i]));
-              cloudState.invoices.forEach(cinv => {
-                if (!currentInvMap.has(cinv.iv_number)) {
-                  App.state.invoices.unshift(cinv);
-                  merged = true;
-                } else {
-                  const existing = currentInvMap.get(cinv.iv_number);
-                  if (existing.status !== cinv.status || existing.paid_amount !== cinv.paid_amount || cinv.approved_by) {
-                    Object.assign(existing, cinv);
-                    merged = true;
-                  }
-                }
-              });
-            }
+            // Check if local is just initial demo data or completely empty
+            const localInvoices = App.state.invoices || [];
+            const isLocalEmptyOrDemo = localInvoices.length === 0 || (localInvoices.length <= 4 && localInvoices.some(i => i.iv_number === 'IV-6708001'));
 
-            if (Array.isArray(cloudState.customers) && cloudState.customers.length > 0) {
-              const custMap = new Map((App.state.customers || []).map(c => [c.id, c]));
-              cloudState.customers.forEach(ccust => {
-                if (!custMap.has(ccust.id)) {
-                  App.state.customers.push(ccust);
-                  merged = true;
-                }
-              });
-            }
-
-            if (Array.isArray(cloudState.payments) && cloudState.payments.length > 0) {
-              const payMap = new Map((App.state.payments || []).map(p => [p.payment_number || p.id, p]));
-              cloudState.payments.forEach(cpay => {
-                const key = cpay.payment_number || cpay.id;
-                if (!payMap.has(key)) {
-                  App.state.payments.unshift(cpay);
-                  merged = true;
-                }
-              });
-            }
-
-            if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
-              if (!App.state.companyBankAccounts || App.state.companyBankAccounts.length === 0) {
+            if (isLocalEmptyOrDemo && Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0) {
+              // Completely adopt cloud state for new device / fresh load
+              App.state.invoices = cloudState.invoices;
+              if (Array.isArray(cloudState.customers)) App.state.customers = cloudState.customers;
+              if (Array.isArray(cloudState.payments)) App.state.payments = cloudState.payments;
+              if (Array.isArray(cloudState.payment_allocations)) App.state.payment_allocations = cloudState.payment_allocations;
+              if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
                 App.state.companyBankAccounts = cloudState.companyBankAccounts;
-                merged = true;
+              }
+              if (Array.isArray(cloudState.audit_logs)) App.state.audit_logs = cloudState.audit_logs;
+              hasChanges = true;
+            } else {
+              // Smart reconciliation for multi-device concurrent usage
+              if (Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0) {
+                const currentInvMap = new Map((App.state.invoices || []).map(i => [i.iv_number || i.id, i]));
+                const mergedInvoices = [];
+                
+                cloudState.invoices.forEach(cinv => {
+                  const key = cinv.iv_number || cinv.id;
+                  if (!currentInvMap.has(key)) {
+                    mergedInvoices.push(cinv);
+                    hasChanges = true;
+                  } else {
+                    const existing = currentInvMap.get(key);
+                    // Update if status, paid amount, approval or items changed
+                    if (existing.status !== cinv.status || existing.paid_amount !== cinv.paid_amount || cinv.approved_by || (cinv.slip_data && !existing.slip_data)) {
+                      Object.assign(existing, cinv);
+                      hasChanges = true;
+                    }
+                    mergedInvoices.push(existing);
+                    currentInvMap.delete(key);
+                  }
+                });
+
+                // Keep local invoices that haven't synced yet
+                currentInvMap.forEach(localOnlyInv => {
+                  mergedInvoices.unshift(localOnlyInv);
+                  hasChanges = true;
+                });
+
+                App.state.invoices = mergedInvoices;
+              }
+
+              if (Array.isArray(cloudState.customers) && cloudState.customers.length > 0) {
+                const custMap = new Map((App.state.customers || []).map(c => [c.id, c]));
+                cloudState.customers.forEach(ccust => {
+                  if (!custMap.has(ccust.id)) {
+                    App.state.customers.push(ccust);
+                    hasChanges = true;
+                  } else {
+                    const existing = custMap.get(ccust.id);
+                    if (existing.name !== ccust.name || existing.phone !== ccust.phone) {
+                      Object.assign(existing, ccust);
+                      hasChanges = true;
+                    }
+                  }
+                });
+              }
+
+              if (Array.isArray(cloudState.payments) && cloudState.payments.length > 0) {
+                const payMap = new Map((App.state.payments || []).map(p => [p.payment_number || p.id, p]));
+                cloudState.payments.forEach(cpay => {
+                  const key = cpay.payment_number || cpay.id;
+                  if (!payMap.has(key)) {
+                    App.state.payments.unshift(cpay);
+                    hasChanges = true;
+                  }
+                });
+              }
+
+              if (Array.isArray(cloudState.payment_allocations) && cloudState.payment_allocations.length > 0) {
+                App.state.payment_allocations = cloudState.payment_allocations;
+              }
+
+              if (cloudState.adminPin && cloudState.adminPin !== App.state.adminPin) {
+                App.state.adminPin = cloudState.adminPin;
+                hasChanges = true;
+              }
+              if (cloudState.ceoPin && cloudState.ceoPin !== App.state.ceoPin) {
+                App.state.ceoPin = cloudState.ceoPin;
+                hasChanges = true;
+              }
+              if (cloudState.staffPin && cloudState.staffPin !== App.state.staffPin) {
+                App.state.staffPin = cloudState.staffPin;
+                hasChanges = true;
+              }
+              if (Array.isArray(cloudState.salespersons) && cloudState.salespersons.length > 0) {
+                App.state.salespersons = cloudState.salespersons;
+                hasChanges = true;
+              }
+
+              if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
+                if (!App.state.companyBankAccounts || App.state.companyBankAccounts.length === 0) {
+                  App.state.companyBankAccounts = cloudState.companyBankAccounts;
+                  hasChanges = true;
+                }
+              }
+
+              if (Array.isArray(cloudState.audit_logs) && cloudState.audit_logs.length > 0) {
+                const logMap = new Set((App.state.audit_logs || []).map(l => l.id));
+                cloudState.audit_logs.forEach(clog => {
+                  if (!logMap.has(clog.id)) {
+                    App.state.audit_logs.unshift(clog);
+                    hasChanges = true;
+                  }
+                });
               }
             }
 
-            if (Array.isArray(cloudState.audit_logs) && cloudState.audit_logs.length > 0) {
-              const logMap = new Set((App.state.audit_logs || []).map(l => l.id));
-              cloudState.audit_logs.forEach(clog => {
-                if (!logMap.has(clog.id)) {
-                  App.state.audit_logs.unshift(clog);
-                  merged = true;
-                }
-              });
-            }
-
-            if (merged) {
+            if (hasChanges) {
               DataManager.saveLocalOnly(App.state);
               App.refreshAllViews();
-              if (showToast) App.showToast('📥 ได้รับข้อมูลอัปเดตแบบ Realtime จาก Supabase Cloud', 'info');
+              if (showToast) {
+                App.showToast(`📥 ซิงค์ข้อมูลจาก Cloud เรียบร้อย (${App.state.invoices?.length || 0} บิล)`, 'success');
+              }
+            } else if (showToast) {
+              App.showToast(`✓ ข้อมูลตรงกับ Cloud เป็นปัจจุบันแล้ว (${App.state.invoices?.length || 0} บิล)`, 'info');
             }
           }
-          this.updateStatusBadge('connected');
+          this.lastSyncTime = new Date();
+          this.updateStatusBadge('connected', `ข้อมูลล่าสุด (${this.formatTime(this.lastSyncTime)})`);
         } catch (err) {
           console.warn('Pull fresh data note:', err);
           this.updateStatusBadge('connected');
@@ -4527,16 +5520,16 @@
         try {
           this.realtimeChannel = this.client.channel('khuckngurn-flow-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state_backup' }, (payload) => {
-              console.log('Realtime update received (app_state_backup):', payload);
-              this.pullFreshData(true);
+              console.log('⚡ Realtime update event from Cloud (app_state_backup):', payload);
+              this.debouncedPull(false);
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
-              console.log('Realtime invoice event:', payload);
-              this.pullFreshData(true);
+              console.log('⚡ Realtime invoice change:', payload);
+              this.debouncedPull(false);
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, (payload) => {
-              console.log('Realtime payment event:', payload);
-              this.pullFreshData(true);
+              console.log('⚡ Realtime payment change:', payload);
+              this.debouncedPull(false);
             })
             .subscribe((status) => {
               console.log('Supabase Realtime Channel status:', status);
@@ -4547,15 +5540,71 @@
       },
 
       pushAllDataManual() {
+        if (this.hasMissingTables) {
+          this.showSqlSchemaModal();
+          return;
+        }
         this.pushAllData(App.state, false);
       },
 
       pullFreshDataManual() {
+        if (this.hasMissingTables) {
+          this.showSqlSchemaModal();
+          return;
+        }
         this.pullFreshData(true);
       },
 
       showSqlSchemaModal() {
-        alert('ระบบสร้างไฟล์ supabase_schema.sql ไว้ในโฟลเดอร์โปรเจกต์แล้ว สามารถคัดลอกไปรันใน Supabase -> SQL Editor ได้ทันที');
+        const modal = document.getElementById('sqlSchemaModal');
+        const textarea = document.getElementById('sqlSchemaTextarea');
+        if (textarea) {
+          textarea.value = SUPABASE_SCHEMA_SQL.trim();
+        }
+        if (modal) {
+          modal.classList.add('active');
+          this.runHealthCheckUI();
+        }
+      },
+
+      closeSqlSchemaModal() {
+        const modal = document.getElementById('sqlSchemaModal');
+        if (modal) modal.classList.remove('active');
+      },
+
+      async copySqlToClipboard() {
+        const textarea = document.getElementById('sqlSchemaTextarea');
+        const btn = document.getElementById('btnCopySqlSchema');
+        const sql = (textarea ? textarea.value : SUPABASE_SCHEMA_SQL).trim();
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(sql);
+          } else {
+            if (textarea) {
+              textarea.select();
+              document.execCommand('copy');
+            }
+          }
+
+          if (btn) {
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<span>✅ คัดลอกคำสั่ง SQL เรียบร้อยแล้ว!</span>';
+            btn.style.background = '#059669';
+            setTimeout(() => {
+              btn.innerHTML = origHtml;
+              btn.style.background = '#10b981';
+            }, 2500);
+          }
+
+          App.showToast('📋 คัดลอกคำสั่ง SQL ทั้งหมดแล้ว นำไปวางใน Supabase -> SQL Editor ได้ทันที', 'success');
+        } catch (err) {
+          console.error('Copy failed:', err);
+          if (textarea) {
+            textarea.select();
+            App.showToast('กรุณากด Ctrl+C เพื่อคัดลอกข้อความในกล่อง', 'info');
+          }
+        }
       }
     };
 
@@ -4923,7 +5972,7 @@
       }
     };
 
-    // 4. AUTHENTICATION & LOGIN CONTROLLER (CEO: ศุภรัตน์ 9999, STAFF: พนักงานฝ่ายขาย 1234)
+    // 4. AUTHENTICATION & LOGIN CONTROLLER (Dynamic Admin, CEO & Individual Sales Staff Authentication)
     const AuthModal = {
       selectedRole: 'CEO',
 
@@ -4968,7 +6017,22 @@
         const pin = pinInput ? pinInput.value.trim() : '';
         const errEl = document.getElementById('appLoginError');
 
-        if (pin === '9999') {
+        const adminPin = App.state?.adminPin || '0318';
+        const ceoPin = App.state?.ceoPin || '9999';
+        const staffPin = App.state?.staffPin || '1234';
+
+        if (pin === adminPin) {
+          // Login as Admin
+          const user = { role: 'ADMIN', name: 'ผู้ดูแลระบบ (Admin)' };
+          sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(user));
+          App.state.currentUserRole = 'ADMIN';
+          DataManager.save(App.state);
+          this.hideLoginOverlay();
+          App.updateUserRoleUI();
+          App.refreshAllViews();
+          App.showToast('👑 ยินดีต้อนรับ ผู้ดูแลระบบ (Admin) เข้าสู่ระบบ', 'success');
+          Router.navigate('dashboard');
+        } else if (pin === ceoPin) {
           // Login as CEO
           const user = { role: 'CEO', name: 'คุณศุภรัตน์ (CEO)' };
           sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(user));
@@ -4979,25 +6043,39 @@
           App.refreshAllViews();
           App.showToast('ยินดีต้อนรับ คุณศุภรัตน์ (CEO) เข้าสู่ระบบ', 'success');
           Router.navigate('dashboard');
-        } else if (pin === '1234') {
-          // Login as Sales Staff
-          const user = { role: 'STAFF', name: 'พนักงานฝ่ายขาย' };
-          sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(user));
-          App.state.currentUserRole = 'STAFF';
-          DataManager.save(App.state);
-          this.hideLoginOverlay();
-          App.updateUserRoleUI();
-          App.refreshAllViews();
-          App.showToast('ยินดีต้อนรับ พนักงานฝ่ายขาย เข้าสู่ระบบ', 'success');
-          Router.navigate('invoices');
         } else {
-          if (errEl) {
-            errEl.innerText = '❌ รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
-            errEl.style.display = 'block';
-          }
-          if (pinInput) {
-            pinInput.value = '';
-            pinInput.focus();
+          // Check salespersons
+          const matchedStaff = (App.state?.salespersons || []).find(s => s.pin === pin && s.is_active !== false);
+          if (matchedStaff) {
+            const user = { role: 'STAFF', name: matchedStaff.name, vehicle: matchedStaff.vehicle, staffId: matchedStaff.id };
+            sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(user));
+            App.state.currentUserRole = 'STAFF';
+            DataManager.save(App.state);
+            this.hideLoginOverlay();
+            App.updateUserRoleUI();
+            App.refreshAllViews();
+            App.showToast(`ยินดีต้อนรับ ${matchedStaff.name} เข้าสู่ระบบ`, 'success');
+            Router.navigate('invoices');
+          } else if (pin === staffPin) {
+            // General Fallback Sales Staff
+            const user = { role: 'STAFF', name: 'พนักงานฝ่ายขาย' };
+            sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(user));
+            App.state.currentUserRole = 'STAFF';
+            DataManager.save(App.state);
+            this.hideLoginOverlay();
+            App.updateUserRoleUI();
+            App.refreshAllViews();
+            App.showToast('ยินดีต้อนรับ พนักงานฝ่ายขาย เข้าสู่ระบบ', 'success');
+            Router.navigate('invoices');
+          } else {
+            if (errEl) {
+              errEl.innerText = '❌ รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+              errEl.style.display = 'block';
+            }
+            if (pinInput) {
+              pinInput.value = '';
+              pinInput.focus();
+            }
           }
         }
       },
@@ -5025,16 +6103,21 @@
       updateRoleButtons() {
         const btnCeo = document.getElementById('btnRoleCeo');
         const btnStaff = document.getElementById('btnRoleStaff');
+        const btnAdmin = document.getElementById('btnRoleAdmin');
         const label = document.getElementById('authPinLabel');
 
-        if (this.selectedRole === 'CEO') {
-          btnCeo.className = 'btn btn-primary';
-          btnStaff.className = 'btn btn-secondary';
-          label.innerText = 'กรอกรหัส PIN ประจำตัว CEO (คุณศุภรัตน์)';
-        } else {
-          btnCeo.className = 'btn btn-secondary';
-          btnStaff.className = 'btn btn-primary';
-          label.innerText = 'กรอกรหัส PIN ประจำตัว พนักงานฝ่ายขาย';
+        if (btnCeo) btnCeo.className = this.selectedRole === 'CEO' ? 'btn btn-primary' : 'btn btn-secondary';
+        if (btnStaff) btnStaff.className = this.selectedRole === 'STAFF' ? 'btn btn-primary' : 'btn btn-secondary';
+        if (btnAdmin) btnAdmin.className = this.selectedRole === 'ADMIN' ? 'btn btn-primary' : 'btn btn-secondary';
+
+        if (label) {
+          if (this.selectedRole === 'ADMIN') {
+            label.innerText = 'กรอกรหัส PIN ประจำตัว ผู้ดูแลระบบ (Admin)';
+          } else if (this.selectedRole === 'CEO') {
+            label.innerText = 'กรอกรหัส PIN ประจำตัว CEO (ผู้บริหาร)';
+          } else {
+            label.innerText = 'กรอกรหัส PIN ประจำตัว พนักงานฝ่ายขาย';
+          }
         }
       },
 
@@ -5046,31 +6129,49 @@
         const pin = document.getElementById('authPinInput').value.trim();
         const errorMsg = document.getElementById('authErrorMsg');
 
-        let isValid = false;
-        if (this.selectedRole === 'CEO' && pin === '9999') isValid = true;
-        if (this.selectedRole === 'STAFF' && pin === '1234') isValid = true;
+        const adminPin = App.state?.adminPin || '0318';
+        const ceoPin = App.state?.ceoPin || '9999';
+        const staffPin = App.state?.staffPin || '1234';
 
-        if (isValid) {
-          const user = {
-            role: this.selectedRole,
-            name: this.selectedRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : 'พนักงานฝ่ายขาย'
-          };
-          sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(user));
+        let isValid = false;
+        let loggedUser = null;
+
+        if (this.selectedRole === 'ADMIN' && pin === adminPin) {
+          isValid = true;
+          loggedUser = { role: 'ADMIN', name: 'ผู้ดูแลระบบ (Admin)' };
+        } else if (this.selectedRole === 'CEO' && pin === ceoPin) {
+          isValid = true;
+          loggedUser = { role: 'CEO', name: 'คุณศุภรัตน์ (CEO)' };
+        } else if (this.selectedRole === 'STAFF') {
+          const matchedStaff = (App.state?.salespersons || []).find(s => s.pin === pin && s.is_active !== false);
+          if (matchedStaff) {
+            isValid = true;
+            loggedUser = { role: 'STAFF', name: matchedStaff.name, vehicle: matchedStaff.vehicle, staffId: matchedStaff.id };
+          } else if (pin === staffPin) {
+            isValid = true;
+            loggedUser = { role: 'STAFF', name: 'พนักงานฝ่ายขาย' };
+          }
+        }
+
+        if (isValid && loggedUser) {
+          sessionStorage.setItem('khuckngurn_auth_user', JSON.stringify(loggedUser));
           App.state.currentUserRole = this.selectedRole;
           DataManager.save(App.state);
           this.close();
           this.hideLoginOverlay();
           App.updateUserRoleUI();
           App.refreshAllViews();
-          App.showToast(`เข้าสู่ระบบในฐานะ: ${user.name} สำเร็จ`, 'success');
+          App.showToast(`เข้าสู่ระบบในฐานะ: ${loggedUser.name} สำเร็จ`, 'success');
           if (this.selectedRole === 'STAFF') {
             Router.navigate('invoices');
           } else {
             Router.navigate('dashboard');
           }
         } else {
-          errorMsg.style.display = 'block';
-          errorMsg.innerText = `❌ รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง`;
+          if (errorMsg) {
+            errorMsg.style.display = 'block';
+            errorMsg.innerText = `❌ รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง`;
+          }
         }
       },
 
@@ -5079,6 +6180,391 @@
         App.state.currentUserRole = null;
         this.showLoginOverlay();
         App.showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
+      }
+    };
+
+    // 4.0 ACCOUNT SECURITY & SALES STAFF CONTROLLER (Admin-Protected PIN & Staff Manager)
+    const AccountSecurity = {
+      isUnlocked: false,
+      unlockCallback: null,
+
+      init() {
+        if (App.state?.currentUserRole === 'ADMIN') {
+          this.isUnlocked = true;
+        }
+
+        const adminInput = document.getElementById('cfgAdminPinInput');
+        const ceoInput = document.getElementById('cfgCeoPinInput');
+
+        if (adminInput) adminInput.value = App.state?.adminPin || '0318';
+        if (ceoInput) ceoInput.value = App.state?.ceoPin || '9999';
+
+        this.updateUI();
+        this.renderSalesStaffList();
+      },
+
+      updateUI() {
+        const badge = document.getElementById('accountSecurityLockBadge');
+        const shieldCard = document.getElementById('adminUnlockPromptCard');
+        const adminInput = document.getElementById('cfgAdminPinInput');
+        const ceoInput = document.getElementById('cfgCeoPinInput');
+        const savePinsBox = document.getElementById('saveSystemPinsBtnBox');
+        const addStaffBtn = document.getElementById('btnAddStaffBtn');
+
+        if (this.isUnlocked) {
+          if (badge) {
+            badge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 700; padding: 4px 10px;">🔓 ปลดล็อคสิทธิ์ Admin แล้ว (แก้ไขได้)</span>`;
+          }
+          if (shieldCard) shieldCard.style.display = 'none';
+          if (adminInput) {
+            adminInput.readOnly = false;
+            adminInput.style.background = 'rgba(139, 92, 246, 0.12)';
+          }
+          if (ceoInput) {
+            ceoInput.readOnly = false;
+            ceoInput.style.background = 'rgba(16, 185, 129, 0.12)';
+          }
+          if (savePinsBox) savePinsBox.style.display = 'block';
+          if (addStaffBtn) addStaffBtn.disabled = false;
+        } else {
+          if (badge) {
+            badge.innerHTML = `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 700; padding: 4px 10px;">🔒 ล็อคความปลอดภัย (ต้องใช้รหัส Admin)</span>`;
+          }
+          if (shieldCard) shieldCard.style.display = 'flex';
+          if (adminInput) {
+            adminInput.readOnly = true;
+            adminInput.style.background = 'rgba(139, 92, 246, 0.06)';
+          }
+          if (ceoInput) {
+            ceoInput.readOnly = true;
+            ceoInput.style.background = 'rgba(16, 185, 129, 0.06)';
+          }
+          if (savePinsBox) savePinsBox.style.display = 'none';
+          if (addStaffBtn) addStaffBtn.disabled = true;
+        }
+      },
+
+      openUnlockModal(callback = null) {
+        this.unlockCallback = callback;
+        const input = document.getElementById('adminVerifyPinInput');
+        if (input) input.value = '';
+        const err = document.getElementById('adminVerifyErrorMsg');
+        if (err) err.style.display = 'none';
+        document.getElementById('adminVerifyModal')?.classList.add('active');
+        setTimeout(() => {
+          if (input) input.focus();
+        }, 150);
+      },
+
+      closeUnlockModal() {
+        document.getElementById('adminVerifyModal')?.classList.remove('active');
+        this.unlockCallback = null;
+      },
+
+      verifyAdminPin() {
+        const input = document.getElementById('adminVerifyPinInput');
+        const pin = input ? input.value.trim() : '';
+        const currentAdminPin = App.state?.adminPin || '0318';
+        const err = document.getElementById('adminVerifyErrorMsg');
+
+        if (pin === currentAdminPin) {
+          this.isUnlocked = true;
+          this.closeUnlockModal();
+          this.updateUI();
+          this.renderSalesStaffList();
+          App.showToast('🔓 ยืนยันรหัสผ่าน Admin สำเร็จ ปลดล็อคระบบความปลอดภัยเรียบร้อย', 'success');
+          if (typeof this.unlockCallback === 'function') {
+            const cb = this.unlockCallback;
+            this.unlockCallback = null;
+            cb();
+          }
+        } else {
+          if (err) {
+            err.style.display = 'block';
+          }
+          if (input) {
+            input.value = '';
+            input.focus();
+          }
+        }
+      },
+
+      togglePinVisibility(inputId, btnEl) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        if (input.type === 'password') {
+          input.type = 'text';
+          if (btnEl) btnEl.innerText = '🙈';
+        } else {
+          input.type = 'password';
+          if (btnEl) btnEl.innerText = '👁️';
+        }
+      },
+
+      saveSystemPins() {
+        if (!this.isUnlocked) {
+          this.openUnlockModal(() => this.saveSystemPins());
+          return;
+        }
+
+        const adminPin = document.getElementById('cfgAdminPinInput')?.value.trim();
+        const ceoPin = document.getElementById('cfgCeoPinInput')?.value.trim();
+
+        if (!adminPin || adminPin.length < 4) {
+          App.showToast('⚠️ รหัส PIN ของ Admin ต้องมีความยาวอย่างน้อย 4 ตัวอักษร', 'warning');
+          return;
+        }
+        if (!ceoPin || ceoPin.length < 4) {
+          App.showToast('⚠️ รหัส PIN ของ CEO ต้องมีความยาวอย่างน้อย 4 ตัวอักษร', 'warning');
+          return;
+        }
+
+        App.state.adminPin = adminPin;
+        App.state.ceoPin = ceoPin;
+
+        App.state.audit_logs.unshift({
+          id: 'AUDIT-' + Date.now(),
+          timestamp: App.getLocalDateTimeStr(),
+          user: 'ผู้ดูแลระบบ (Admin)',
+          role: 'ADMIN',
+          action: 'UPDATE_SYSTEM_PINS',
+          table: 'security_pins',
+          reference_id: 'SYSTEM_PINS',
+          details: `เปลี่ยนรหัส PIN ระบบ (Admin & CEO)`
+        });
+
+        DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
+
+        App.showToast('✅ บันทึกรหัสผ่าน PIN Admin & CEO เรียบร้อยแล้ว', 'success');
+      },
+
+      renderSalesStaffList() {
+        const tbody = document.getElementById('salesStaffTableBody');
+        if (!tbody) return;
+
+        const staffList = App.state?.salespersons || [];
+        if (staffList.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 18px;">
+                ยังไม่มีข้อมูลพนักงานขาย กดปุ่ม <strong>"➕ เพิ่มพนักงานขาย"</strong> ด้านบนเพื่อสร้างบัญชีพนักงาน
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = staffList.map((s, idx) => {
+          const pinInputId = `staffPinRow_${s.id || idx}`;
+          return `
+            <tr>
+              <td>
+                <div style="font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                  <span>👤</span>
+                  <span>${s.name}</span>
+                </div>
+              </td>
+              <td>
+                <div style="color: var(--text-secondary); font-size: 12px;">
+                  🚛 ${s.vehicle || 'ไม่ระบุ'}
+                </div>
+              </td>
+              <td>
+                <span class="font-mono" style="font-size: 11.5px; color: var(--text-muted);">${s.phone || '-'}</span>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <input type="password" id="${pinInputId}" value="${s.pin || ''}" readonly class="form-input font-mono"
+                    style="width: 80px; padding: 2px 6px; font-size: 13px; font-weight: 700; letter-spacing: 2px; height: 26px; background: rgba(0,0,0,0.2);">
+                  <button type="button" onclick="AccountSecurity.togglePinVisibility('${pinInputId}', this)"
+                    style="background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 4px; color: var(--text-muted);" title="แสดง/ซ่อนรหัส PIN">👁️</button>
+                </div>
+              </td>
+              <td style="text-align: center;">
+                <div style="display: flex; gap: 4px; justify-content: center;">
+                  <button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;"
+                    onclick="AccountSecurity.openEditStaffModal('${s.id}')" ${!this.isUnlocked ? 'disabled title="กรุณาปลดล็อคสิทธิ์ Admin ก่อน"' : ''}>
+                    ✏️
+                  </button>
+                  <button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--status-unpaid);"
+                    onclick="AccountSecurity.deleteStaff('${s.id}')" ${!this.isUnlocked ? 'disabled title="กรุณาปลดล็อคสิทธิ์ Admin ก่อน"' : ''}>
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      },
+
+      openAddStaffModal() {
+        if (!this.isUnlocked) {
+          this.openUnlockModal(() => this.openAddStaffModal());
+          return;
+        }
+
+        document.getElementById('salespersonModalTitle').innerHTML = '<span>➕</span> <span>เพิ่มข้อมูลพนักงานขายใหม่</span>';
+        document.getElementById('staffEditId').value = '';
+        document.getElementById('staffNameInput').value = '';
+        document.getElementById('staffVehicleInput').value = '';
+        document.getElementById('staffPhoneInput').value = '';
+        document.getElementById('staffPinInput').value = '';
+        document.getElementById('staffPinInput').type = 'password';
+
+        document.getElementById('salespersonModal')?.classList.add('active');
+        setTimeout(() => document.getElementById('staffNameInput')?.focus(), 150);
+      },
+
+      openEditStaffModal(staffId) {
+        if (!this.isUnlocked) {
+          this.openUnlockModal(() => this.openEditStaffModal(staffId));
+          return;
+        }
+
+        const staff = (App.state?.salespersons || []).find(s => s.id === staffId);
+        if (!staff) {
+          App.showToast('ไม่พบข้อมูลพนักงานขายที่ต้องการแก้ไข', 'error');
+          return;
+        }
+
+        document.getElementById('salespersonModalTitle').innerHTML = '<span>✏️</span> <span>แก้ไขข้อมูลพนักงานขาย</span>';
+        document.getElementById('staffEditId').value = staff.id;
+        document.getElementById('staffNameInput').value = staff.name || '';
+        document.getElementById('staffVehicleInput').value = staff.vehicle || '';
+        document.getElementById('staffPhoneInput').value = staff.phone || '';
+        document.getElementById('staffPinInput').value = staff.pin || '';
+        document.getElementById('staffPinInput').type = 'password';
+
+        document.getElementById('salespersonModal')?.classList.add('active');
+        setTimeout(() => document.getElementById('staffNameInput')?.focus(), 150);
+      },
+
+      closeStaffModal() {
+        document.getElementById('salespersonModal')?.classList.remove('active');
+      },
+
+      saveStaff() {
+        if (!this.isUnlocked) {
+          this.openUnlockModal(() => this.saveStaff());
+          return;
+        }
+
+        const editId = document.getElementById('staffEditId')?.value;
+        const name = document.getElementById('staffNameInput')?.value.trim();
+        const vehicle = document.getElementById('staffVehicleInput')?.value.trim();
+        const phone = document.getElementById('staffPhoneInput')?.value.trim();
+        const pin = document.getElementById('staffPinInput')?.value.trim();
+
+        if (!name) {
+          App.showToast('⚠️ กรุณาระบุชื่อพนักงานขาย', 'warning');
+          return;
+        }
+        if (!vehicle) {
+          App.showToast('⚠️ กรุณาระบุสายส่งหรือรถประจำ', 'warning');
+          return;
+        }
+        if (!pin || pin.length < 3) {
+          App.showToast('⚠️ กรุณากำหนดรหัส PIN เข้าใช้งานอย่างน้อย 3-4 ตัวอักษร/ตัวเลข', 'warning');
+          return;
+        }
+
+        if (!Array.isArray(App.state.salespersons)) {
+          App.state.salespersons = [];
+        }
+
+        if (editId) {
+          // Update existing
+          const staff = App.state.salespersons.find(s => s.id === editId);
+          if (staff) {
+            staff.name = name;
+            staff.vehicle = vehicle;
+            staff.phone = phone;
+            staff.pin = pin;
+
+            App.state.audit_logs.unshift({
+              id: 'AUDIT-' + Date.now(),
+              timestamp: App.getLocalDateTimeStr(),
+              user: 'ผู้ดูแลระบบ (Admin)',
+              role: 'ADMIN',
+              action: 'UPDATE_SALESPERSON',
+              table: 'salespersons',
+              reference_id: staff.id,
+              details: `แก้ไขข้อมูลพนักงานขาย: ${name} (รถ: ${vehicle})`
+            });
+
+            App.showToast(`✅ ปรับปรุงข้อมูลพนักงาน ${name} เรียบร้อยแล้ว`, 'success');
+          }
+        } else {
+          // Create new
+          const newStaff = {
+            id: 'STAFF-' + Date.now(),
+            name: name,
+            vehicle: vehicle,
+            phone: phone,
+            pin: pin,
+            is_active: true
+          };
+          App.state.salespersons.push(newStaff);
+
+          App.state.audit_logs.unshift({
+            id: 'AUDIT-' + Date.now(),
+            timestamp: App.getLocalDateTimeStr(),
+            user: 'ผู้ดูแลระบบ (Admin)',
+            role: 'ADMIN',
+            action: 'CREATE_SALESPERSON',
+            table: 'salespersons',
+            reference_id: newStaff.id,
+            details: `เพิ่มพนักงานขายใหม่: ${name} (รถ: ${vehicle})`
+          });
+
+          App.showToast(`✅ เพิ่มพนักงานขาย ${name} เรียบร้อยแล้ว`, 'success');
+        }
+
+        DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
+
+        this.closeStaffModal();
+        this.renderSalesStaffList();
+      },
+
+      deleteStaff(staffId) {
+        if (!this.isUnlocked) {
+          this.openUnlockModal(() => this.deleteStaff(staffId));
+          return;
+        }
+
+        const staff = (App.state.salespersons || []).find(s => s.id === staffId);
+        if (!staff) return;
+
+        if (!confirm(`ยืนยันการลบพนักงานขาย "${staff.name}" ออกจากระบบหรือไม่?`)) {
+          return;
+        }
+
+        App.state.salespersons = App.state.salespersons.filter(s => s.id !== staffId);
+
+        App.state.audit_logs.unshift({
+          id: 'AUDIT-' + Date.now(),
+          timestamp: App.getLocalDateTimeStr(),
+          user: 'ผู้ดูแลระบบ (Admin)',
+          role: 'ADMIN',
+          action: 'DELETE_SALESPERSON',
+          table: 'salespersons',
+          reference_id: staffId,
+          details: `ลบพนักงานขาย: ${staff.name}`
+        });
+
+        DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
+
+        this.renderSalesStaffList();
+        App.showToast(`🗑️ ลบพนักงานขาย "${staff.name}" เรียบร้อยแล้ว`, 'info');
       }
     };
 
@@ -5535,14 +7021,50 @@
         const outstandingTotal = invoices.reduce((s, i) => s + (i.outstanding_amount || 0), 0);
         const unpaidInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL');
 
-        // Estimate payment breakdown for filtered set
+        // Accurately compute payment breakdown for filtered set
         let cashTotal = 0, transferTotal = 0, chequeTotal = 0;
         invoices.forEach(inv => {
-          if (inv.slip_data) {
-            if (inv.slip_data.type === 'CHEQUE') chequeTotal += inv.paid_amount;
-            else transferTotal += inv.paid_amount;
-          } else if (inv.paid_amount > 0) {
-            cashTotal += inv.paid_amount;
+          const paidAmt = parseFloat(inv.paid_amount) || 0;
+          if (paidAmt <= 0) return;
+
+          // Check if there are specific payment allocations
+          const allocs = (App.state.payment_allocations || []).filter(a => a.invoice_id === inv.id);
+          if (allocs.length > 0) {
+            let allocatedSum = 0;
+            allocs.forEach(alloc => {
+              const amt = parseFloat(alloc.allocated_amount) || 0;
+              const pay = (App.state.payments || []).find(p => p.id === alloc.payment_id);
+              const pType = (pay?.payment_type || inv.slip_data?.type || inv.payment_type || 'TRANSFER').toUpperCase();
+
+              if (pType === 'CASH') cashTotal += amt;
+              else if (pType === 'CHEQUE') chequeTotal += amt;
+              else transferTotal += amt;
+
+              allocatedSum += amt;
+            });
+
+            // If there is any remaining paid amount beyond allocations
+            if (paidAmt > allocatedSum) {
+              const rem = paidAmt - allocatedSum;
+              const sType = (inv.slip_data?.type || inv.payment_type || '').toUpperCase();
+              if (sType === 'CHEQUE') chequeTotal += rem;
+              else if (sType === 'CASH' || (!inv.slip_data && !inv.payment_type)) cashTotal += rem;
+              else transferTotal += rem;
+            }
+          } else {
+            // Direct / manual match or single payment
+            const sType = (inv.slip_data?.type || inv.payment_type || '').toUpperCase();
+            if (sType === 'CHEQUE') {
+              chequeTotal += paidAmt;
+            } else if (sType === 'CASH') {
+              cashTotal += paidAmt;
+            } else if (sType === 'TRANSFER' || sType === 'STATEMENT' || (inv.slip_data && (inv.slip_data.proof_data_url || inv.slip_data.bank || inv.slip_data.ref_no))) {
+              transferTotal += paidAmt;
+            } else if (inv.slip_data) {
+              transferTotal += paidAmt;
+            } else {
+              cashTotal += paidAmt;
+            }
           }
         });
 
@@ -5598,13 +7120,17 @@
           else statusBadge = '<span class="badge badge-unpaid">🔴 ค้างชำระ</span>';
 
           let methodInfo = '<span style="color:var(--text-muted); font-size:11px;">-</span>';
-          if (inv.slip_data) {
-            const slip = inv.slip_data;
-            const bankName = slip.bank || 'โอนธนาคาร';
-            const ref = slip.ref_no || '-';
-            methodInfo = `<span style="font-size:11px;">📱 <strong>${bankName}</strong><br><span class="font-mono text-muted">${ref}</span></span>`;
-          } else if (inv.paid_amount > 0) {
-            methodInfo = '<span style="font-size:11px; color:var(--text-emerald);">💵 เงินสด (หน้าร้าน/รถ)</span>';
+          if (inv.paid_amount > 0) {
+            const sType = (inv.slip_data?.type || inv.payment_type || '').toUpperCase();
+            if (sType === 'CHEQUE') {
+              methodInfo = `<span style="font-size:11px; color:var(--status-partial);">📑 <strong>เช็ค: ${inv.slip_data?.bank || 'ธนาคาร'}</strong><br><span class="font-mono text-muted">${inv.slip_data?.ref_no || '-'}</span></span>`;
+            } else if (sType === 'CASH' || (!inv.slip_data && !inv.payment_type)) {
+              methodInfo = '<span style="font-size:11px; color:var(--text-emerald);">💵 เงินสด (หน้าร้าน/สายส่ง)</span>';
+            } else {
+              const bankName = inv.slip_data?.bank || 'โอนธนาคาร';
+              const ref = inv.slip_data?.ref_no || '-';
+              methodInfo = `<span style="font-size:11px;">📱 <strong>${bankName}</strong><br><span class="font-mono text-muted">${ref}</span></span>`;
+            }
           }
 
           return `
@@ -5704,51 +7230,167 @@
         }
       },
 
+      getBundledInvoicesFor(inv) {
+        if (!inv) return { isBundled: false, pairedInvoices: [], totalPaymentAmount: 0 };
+
+        const pairedMap = new Map();
+        let totalPaymentAmount = 0;
+
+        // Strictly check via explicit payment allocations (where multiple bills were ticked/selected during payment recording)
+        const myAllocs = (this.state.payment_allocations || []).filter(a => a.invoice_id === inv.id);
+        if (myAllocs.length > 0) {
+          myAllocs.forEach(myAlloc => {
+            const payId = myAlloc.payment_id;
+            const siblingAllocs = (this.state.payment_allocations || []).filter(a => a.payment_id === payId && a.invoice_id !== inv.id);
+            siblingAllocs.forEach(sa => {
+              const sibInv = (this.state.invoices || []).find(i => i.id === sa.invoice_id);
+              if (sibInv && !pairedMap.has(sibInv.id)) {
+                const c = (this.state.customers || []).find(cust => cust.id === sibInv.customer_id);
+                pairedMap.set(sibInv.id, {
+                  id: sibInv.id,
+                  iv_number: sibInv.iv_number,
+                  paid_amount: sa.allocated_amount || sibInv.paid_amount,
+                  total_amount: sibInv.total_amount,
+                  customer_name: c?.name || 'ลูกค้า',
+                  customer_code: c?.code || '-',
+                  status: sibInv.status
+                });
+              }
+            });
+            const pay = (this.state.payments || []).find(p => p.id === payId);
+            if (pay && pay.amount) totalPaymentAmount = Math.max(totalPaymentAmount, pay.amount);
+          });
+        }
+
+        // Also check if inv.slip_data has an explicit payment_id or payment_number link
+        const slipPayId = inv.slip_data?.payment_id;
+        if (slipPayId) {
+          (this.state.invoices || []).forEach(other => {
+            if (other.id !== inv.id && other.slip_data?.payment_id === slipPayId && !pairedMap.has(other.id)) {
+              const c = (this.state.customers || []).find(cust => cust.id === other.customer_id);
+              pairedMap.set(other.id, {
+                id: other.id,
+                iv_number: other.iv_number,
+                paid_amount: other.paid_amount,
+                total_amount: other.total_amount,
+                customer_name: c?.name || 'ลูกค้า',
+                customer_code: c?.code || '-',
+                status: other.status
+              });
+            }
+          });
+        }
+
+        const pairedInvoices = Array.from(pairedMap.values());
+        const isBundled = pairedInvoices.length > 0;
+
+        if (totalPaymentAmount <= 0) {
+          totalPaymentAmount = (inv.paid_amount || 0) + pairedInvoices.reduce((s, p) => s + (p.paid_amount || 0), 0);
+        }
+
+        return {
+          isBundled,
+          pairedInvoices,
+          totalPaymentAmount
+        };
+      },
+
       updateUserRoleUI() {
-        const isCeo = this.state.currentUserRole === 'CEO';
+        const role = this.state.currentUserRole || 'CEO';
+        const isCeo = role === 'CEO';
+        const isStaff = role === 'STAFF';
+        const isAdmin = role === 'ADMIN';
+
         const avatar = document.getElementById('sidebarAvatar');
         const name = document.getElementById('sidebarUserName');
         const badge = document.getElementById('sidebarRoleBadge');
 
-        // Navigation elements for CEO only
+        // Navigation elements for CEO & Staff
         const navCatCeo = document.getElementById('navCategoryCeo');
         const navDash = document.getElementById('nav-dashboard');
         const navApprove = document.getElementById('nav-approval');
 
-        if (isCeo) {
+        const navCatStaff = document.getElementById('navCategoryStaff');
+        const navInvoices = document.getElementById('nav-invoices');
+        const navPaymentsHub = document.getElementById('nav-payments-hub');
+        const navOcr = document.getElementById('nav-ocr');
+
+        if (isAdmin) {
+          if (avatar) {
+            avatar.innerText = 'ADM';
+            avatar.className = 'user-avatar admin';
+            avatar.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)';
+          }
+          if (name) name.innerText = 'ผู้ดูแลระบบ (Admin)';
+          if (badge) {
+            badge.innerText = 'ADMIN';
+            badge.className = 'user-role-badge admin';
+            badge.style.background = 'rgba(139, 92, 246, 0.2)';
+            badge.style.color = '#a78bfa';
+            badge.style.border = '1px solid rgba(139, 92, 246, 0.4)';
+          }
+          // Admin sees EVERYTHING
+          if (navCatCeo) navCatCeo.style.display = 'block';
+          if (navDash) navDash.style.display = 'flex';
+          if (navApprove) navApprove.style.display = 'flex';
+
+          if (navCatStaff) navCatStaff.style.display = 'block';
+          if (navInvoices) navInvoices.style.display = 'flex';
+          if (navPaymentsHub) navPaymentsHub.style.display = 'flex';
+          if (navOcr) navOcr.style.display = 'flex';
+        } else if (isCeo) {
           if (avatar) {
             avatar.innerText = 'CEO';
             avatar.className = 'user-avatar';
+            avatar.style.background = '';
           }
           if (name) name.innerText = 'คุณศุภรัตน์ (CEO)';
           if (badge) {
             badge.innerText = 'CEO';
             badge.className = 'user-role-badge ceo';
+            badge.style.background = '';
+            badge.style.color = '';
+            badge.style.border = '';
           }
+          // CEO sees CEO items ONLY, HIDE Staff operational tools to eliminate clutter and prevent confusion!
           if (navCatCeo) navCatCeo.style.display = 'block';
           if (navDash) navDash.style.display = 'flex';
           if (navApprove) navApprove.style.display = 'flex';
-        } else {
+
+          if (navCatStaff) navCatStaff.style.display = 'none';
+          if (navInvoices) navInvoices.style.display = 'none';
+          if (navPaymentsHub) navPaymentsHub.style.display = 'none';
+          if (navOcr) navOcr.style.display = 'none';
+        } else { // STAFF
           if (avatar) {
             avatar.innerText = 'STF';
             avatar.className = 'user-avatar staff';
+            avatar.style.background = '';
           }
           if (name) name.innerText = 'พนักงานฝ่ายขาย';
           if (badge) {
             badge.innerText = 'พนักงานฝ่ายขาย';
             badge.className = 'user-role-badge staff';
+            badge.style.background = '';
+            badge.style.color = '';
+            badge.style.border = '';
           }
           // Hide CEO sections completely from staff
           if (navCatCeo) navCatCeo.style.display = 'none';
           if (navDash) navDash.style.display = 'none';
           if (navApprove) navApprove.style.display = 'none';
+
+          if (navCatStaff) navCatStaff.style.display = 'block';
+          if (navInvoices) navInvoices.style.display = 'flex';
+          if (navPaymentsHub) navPaymentsHub.style.display = 'flex';
+          if (navOcr) navOcr.style.display = 'flex';
         }
 
         const guard = document.getElementById('dashboardAuthGuard');
         const main = document.getElementById('dashboardMainContent');
         if (guard && main) {
-          guard.style.display = isCeo ? 'none' : 'block';
-          main.style.display = isCeo ? 'block' : 'none';
+          guard.style.display = (isCeo || isAdmin) ? 'none' : 'block';
+          main.style.display = (isCeo || isAdmin) ? 'block' : 'none';
         }
       },
 
@@ -5761,6 +7403,9 @@
         AuditView.render();
         ReportHub.render();
         BankAccountsManager.renderSettingsList();
+        if (typeof AccountSecurity !== 'undefined' && AccountSecurity.renderSalesStaffList) {
+          AccountSecurity.renderSalesStaffList();
+        }
         this.updateCustomerDropdowns();
         this.updateSidebarBadges();
       },
@@ -5838,8 +7483,21 @@
         this.showToast('บันทึกการตั้งค่าระบบเรียบร้อยแล้ว', 'success');
       },
 
+      lastToastMsg: null,
+      lastToastTime: 0,
+
       showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        // Prevent identical toast spam within 2 seconds
+        const now = Date.now();
+        if (this.lastToastMsg === message && (now - this.lastToastTime) < 2000) {
+          return;
+        }
+        this.lastToastMsg = message;
+        this.lastToastTime = now;
+
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
 
@@ -5877,14 +7535,23 @@
       },
 
       handleHashChange() {
-        let defaultView = App.state?.currentUserRole === 'CEO' ? 'dashboard' : 'invoices';
+        const role = App.state?.currentUserRole || 'CEO';
+        let defaultView = (role === 'CEO' || role === 'ADMIN') ? 'dashboard' : 'invoices';
         let viewId = window.location.hash.replace('#', '') || defaultView;
 
-        // Role-Based Access Guard: Sales Staff CANNOT access Dashboard or CEO Approval
-        if ((viewId === 'dashboard' || viewId === 'approval') && App.state?.currentUserRole !== 'CEO') {
-          App.showToast('⚠️ หน้าแดชบอร์ดภาพรวมสงวนสิทธิ์เฉพาะ CEO (คุณศุภรัตน์) เท่านั้น', 'warning');
+        // Role-Based Access Guard:
+        // 1. Sales Staff CANNOT access Dashboard or CEO Approval
+        if ((viewId === 'dashboard' || viewId === 'approval') && role === 'STAFF') {
+          App.showToast('⚠️ หน้าแดชบอร์ดภาพรวมสงวนสิทธิ์เฉพาะ CEO หรือ Admin เท่านั้น', 'warning');
           viewId = 'invoices';
           window.location.hash = 'invoices';
+        }
+
+        // 2. CEO is isolated from Staff-only operational tools to prevent confusion
+        if ((viewId === 'invoices' || viewId === 'payments-hub' || viewId === 'ocr') && role === 'CEO') {
+          App.showToast('ℹ️ บัญชี CEO มุ่งเน้นการดูแดชบอร์ดภาพรวมและอนุมัติปิดบิลรายวัน', 'info');
+          viewId = 'dashboard';
+          window.location.hash = 'dashboard';
         }
 
         const targetView = document.getElementById(`view-${viewId}`);
@@ -5926,6 +7593,9 @@
           CustomerView.render();
         } else if (viewId === 'settings') {
           BankAccountsManager.renderSettingsList();
+          if (typeof AccountSecurity !== 'undefined' && AccountSecurity.init) {
+            AccountSecurity.init();
+          }
         }
       }
     };
@@ -6732,6 +8402,9 @@
               highlightedPageUrl = pageDataUrl;
             }
 
+            const payId = 'PAY-' + Math.floor(1000 + Math.random() * 9000);
+            const isBundledTx = (tx.allocated_bills || []).length > 1;
+
             (tx.allocated_bills || []).forEach(b => {
               const inv = App.state.invoices.find(i => i.id === b.invoiceId || i.iv_number === b.invoiceNumber);
               if (!inv) return;
@@ -6742,6 +8415,8 @@
               inv.outstanding_amount = Math.max(0, (parseFloat(inv.outstanding_amount !== undefined ? inv.outstanding_amount : inv.total_amount) || 0) - payAmt);
 
               inv.slip_data = {
+                payment_id: payId,
+                is_bundled: isBundledTx,
                 bank: accountInfo.bank,
                 ref_no: 'STMT-' + (tx.id || ('TX' + (txIdx + 1))),
                 transfer_date: tx.datetime || App.getLocalDateTimeStr(),
@@ -6768,6 +8443,14 @@
                 type: 'STATEMENT'
               };
 
+              if (!Array.isArray(App.state.payment_allocations)) App.state.payment_allocations = [];
+              App.state.payment_allocations.push({
+                id: 'ALC-' + Math.floor(1000 + Math.random() * 9000),
+                payment_id: payId,
+                invoice_id: inv.id,
+                allocated_amount: payAmt
+              });
+
               if (inv.outstanding_amount <= 0) {
                 inv.status = 'WAITING_APPROVAL';
               } else {
@@ -6785,7 +8468,6 @@
               return inv && inv.customer_id === c.id;
             }) || App.state.customers[0] || { id: 'CUST-001', name: 'ลูกค้าทั่วไป' };
 
-            const payId = 'PAY-' + Math.floor(1000 + Math.random() * 9000);
             const totalDeducted = (tx.allocated_bills || []).reduce((s, b) => s + (parseFloat(b.deductAmount) || 0), 0);
 
             App.state.payments.unshift({
@@ -6800,6 +8482,8 @@
               reference_number: 'STMT-' + (tx.id || ('TX' + (txIdx + 1))),
               note: 'Match อัจฉริยะจาก OCR Statement หน้า ' + pageNum + ' กับบิล [' + matchedIvNumbers.join(', ') + ']',
               slip_data: {
+                payment_id: payId,
+                is_bundled: isBundledTx,
                 bank: accountInfo.bank,
                 ref_no: 'STMT-' + (tx.id || ('TX' + (txIdx + 1))),
                 transfer_date: tx.datetime || App.getLocalDateTimeStr(),
@@ -8424,8 +10108,18 @@
       onTypeChange() {
         const type = document.getElementById('payTypeSelect').value;
         const proofSection = document.getElementById('payProofSection');
+        const reqLabel = document.getElementById('payProofRequiredLabel');
         if (proofSection) {
           proofSection.style.display = type === 'CASH' ? 'none' : 'block';
+        }
+        if (reqLabel) {
+          if (type === 'TRANSFER') {
+            reqLabel.innerHTML = '<span style="color: #ef4444; font-weight: 700;">* จำเป็นต้องแนบรูปสลิป</span>';
+          } else if (type === 'CHEQUE') {
+            reqLabel.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">(แนะนำให้แนบรูปหน้าเช็ค)</span>';
+          } else {
+            reqLabel.innerHTML = '';
+          }
         }
       },
 
@@ -8598,6 +10292,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
               <input type="checkbox" name="matchInv" value="${inv.id}" onchange="PaymentModal.checkAmountMismatch()" ${this.targetInvoiceId === inv.id || (!this.targetInvoiceId && idx === 0) ? 'checked' : ''}>
               <span class="font-mono" style="font-weight: 600;">${inv.iv_number}</span>
+              ${inv.transferred_from_iv ? `<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 10px; padding: 1px 5px;">🔄 รับจาก #${inv.transferred_from_iv}</span>` : ''}
               <span style="color: var(--text-muted);">(${inv.invoice_date} - 🚛 ${inv.delivery_vehicle})</span>
             </label>
             <span class="font-mono text-rose font-weight: 600;">${App.formatCurrency(inv.outstanding_amount)}</span>
@@ -8625,6 +10320,22 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           return;
         }
 
+        // STRICT MANDATORY PROOF VALIDATION FOR TRANSFER METHOD
+        if (type === 'TRANSFER' && !this.proofDataUrl) {
+          App.showToast('⚠️ กรุณาแนบรูปภาพสลิป/หลักฐานการโอนเงิน (การชำระแบบโอนเงินจำเป็นต้องแนบรูปหลักฐาน)', 'warning');
+          const dropzone = document.getElementById('proofDropzone');
+          if (dropzone) {
+            dropzone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            dropzone.style.borderColor = '#ef4444';
+            dropzone.style.boxShadow = '0 0 14px rgba(239, 68, 68, 0.5)';
+            setTimeout(() => {
+              dropzone.style.borderColor = 'var(--primary)';
+              dropzone.style.boxShadow = 'none';
+            }, 2500);
+          }
+          return;
+        }
+
         const payId = 'PAY-' + String(App.state.payments.length + 1).padStart(3, '0');
         const payNumber = 'RC-6708' + String(App.state.payments.length + 1).padStart(3, '0');
 
@@ -8646,7 +10357,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const recAcc = this.passedSlipData?.receiver_account || 
                        this.passedSlipData?.account_number || '-';
 
+        const isBundledPayment = targetInvoices.length > 1;
+
         const constructedSlipData = {
+          payment_id: payId,
+          is_bundled: isBundledPayment,
           type: type,
           bank: this.passedSlipData?.bank || this.passedSlipData?.receiver_bank || (type === 'TRANSFER' ? 'โอนเงินผ่านธนาคาร' : type === 'CHEQUE' ? 'เช็คธนาคาร' : 'เงินสด'),
           ref_no: ref,
@@ -9600,7 +11315,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
           totalSalesAmount += totalAmt;
 
-          if (inv.status === 'WAITING_APPROVAL') {
+          if (inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED') {
             waitingCount++;
             waitingAmount += (paidAmt || totalAmt);
           }
@@ -9630,7 +11345,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const kpiTotCnt = document.getElementById('ceoKpiTotalBillsCount');
 
         if (kpiWaitAmt) kpiWaitAmt.innerText = '฿' + App.formatCurrency(waitingAmount);
-        if (kpiWaitCnt) kpiWaitCnt.innerText = `${waitingCount} บิล (ชำระครบแล้ว)`;
+        if (kpiWaitCnt) kpiWaitCnt.innerText = `${waitingCount} บิล (ชำระครบ/ส่งต่อรอตรวจ)`;
         if (kpiOutAmt) kpiOutAmt.innerText = '฿' + App.formatCurrency(outstandingAmount);
         if (kpiOutCnt) kpiOutCnt.innerText = `${outstandingCount} บิล (ยังไม่ชำระ / ค้างบางส่วน)`;
         if (kpiOverAmt) kpiOverAmt.innerText = '฿' + App.formatCurrency(overdueAmount);
@@ -9659,7 +11374,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         // 2. Filter Invoices based on Active Tab
         let filtered = allInvoices.filter(inv => {
           const debt = Math.max(0, (inv.outstanding_amount !== undefined ? parseFloat(inv.outstanding_amount) : (parseFloat(inv.total_amount) || 0) - (parseFloat(inv.paid_amount) || 0)));
-          if (this.activeTab === 'WAITING') return inv.status === 'WAITING_APPROVAL';
+          if (this.activeTab === 'WAITING') return inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED';
           if (this.activeTab === 'OUTSTANDING') return (inv.status === 'UNPAID' || inv.status === 'PARTIAL' || debt > 0);
           if (this.activeTab === 'OVERDUE') return debt > 0 && inv.due_date && inv.due_date < todayStr;
           if (this.activeTab === 'PAID') return inv.status === 'PAID';
@@ -9675,6 +11390,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               (cust.name && cust.name.toLowerCase().includes(q)) ||
               (cust.code && cust.code.toLowerCase().includes(q)) ||
               (inv.delivery_vehicle && inv.delivery_vehicle.toLowerCase().includes(q)) ||
+              (inv.transferred_from_iv && inv.transferred_from_iv.toLowerCase().includes(q)) ||
               String(inv.total_amount).includes(q) ||
               String(inv.outstanding_amount).includes(q);
           });
@@ -9739,14 +11455,20 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           }
 
           let statusBadge = '<span class="badge badge-unpaid">🔴 ค้างชำระ</span>';
-          if (inv.status === 'PAID' || debtAmt <= 0) statusBadge = '<span class="badge badge-paid">✓ ปิดบิลแล้ว</span>';
+          if (inv.status === 'PAID' || (debtAmt <= 0 && inv.status !== 'TRANSFERRED')) statusBadge = '<span class="badge badge-paid">✓ ปิดบิลแล้ว</span>';
+          else if (inv.status === 'TRANSFERRED') statusBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">🔄 ส่งต่อ (รอ CEO ประเมิน)</span>';
           else if (inv.status === 'WAITING_APPROVAL') statusBadge = '<span class="badge badge-waiting">⏳ ชำระครบรอตรวจ</span>';
           else if (inv.status === 'PARTIAL') statusBadge = '<span class="badge badge-partial">🟡 ชำระบางส่วน</span>';
 
           // Slip / Proof Badge representation
           let proofHtml = '<span style="font-size: 11.5px; color: var(--text-muted);">🔴 ยังไม่มีสลิป</span>';
           const slip = inv.slip_data;
-          if (slip) {
+          const bundleInfo = App.getBundledInvoicesFor(inv);
+
+          if (inv.status === 'TRANSFERRED' || inv.transfer_data) {
+            const destCount = inv.transfer_data?.destinations?.length || 1;
+            proofHtml = `<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 11px; padding: 3px 7px;">🏪 ย้ายขายหน้าร้าน (${destCount} ร้าน)</span>`;
+          } else if (slip) {
             const isStatement = slip.type === 'STATEMENT' || !!slip.original_file_url;
             const pageNum = slip.page_number || slip.crop_info?.pageNumber || 1;
             const isCheque = slip.type === 'CHEQUE';
@@ -9763,12 +11485,23 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             }
           }
 
+          if (bundleInfo.isBundled) {
+            const pairedList = bundleInfo.pairedInvoices.map(p => p.iv_number).join(', ');
+            proofHtml += ` <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 10px; padding: 2px 6px; margin-top: 3px; display: inline-flex; align-items: center; gap: 3px;" title="โอนแบบรวมบิลคู่กับ [${pairedList}]">⚡ รวม ${bundleInfo.pairedInvoices.length + 1} บิล</span>`;
+          }
+
           // Single Focused CEO Inspection Action Button (Dual View: Real Transfer Proof + Sales IV)
           let actionBtns = '';
           if (inv.status === 'WAITING_APPROVAL') {
             actionBtns = `
               <button type="button" class="btn btn-cyan" style="padding: 6px 12px; font-size: 12px; font-weight: 700; width: 100%; justify-content: center; box-shadow: 0 2px 8px rgba(6, 182, 212, 0.35); white-space: nowrap;" onclick="SlipInspectModal.open('${inv.id}')" title="เปิดหน้าต่างตรวจหลักฐานการโอนจริงคู่กับบิลขาย IV และอนุมัติ">
                 <span>🔍 ตรวจสอบคู่ & อนุมัติ</span>
+              </button>
+            `;
+          } else if (inv.status === 'TRANSFERRED') {
+            actionBtns = `
+              <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; font-weight: 700; color: #c084fc; border-color: rgba(168, 85, 247, 0.4); width: 100%; justify-content: center; box-shadow: 0 2px 8px rgba(168, 85, 247, 0.2); white-space: nowrap;" onclick="SlipInspectModal.open('${inv.id}')" title="เปิดตรวจรายละเอียดการส่งต่อบิลและอนุมัติประเมิน">
+                <span>🔍 ตรวจการส่งต่อ & ประเมิน</span>
               </button>
             `;
           } else if (inv.status === 'PAID') {
@@ -9789,6 +11522,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             <tr style="${isOverdue ? 'background: rgba(239, 68, 68, 0.04);' : ''}">
               <td>
                 <span class="font-mono font-weight: 700 text-emerald" style="cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="คลิกเพื่อเปิดหน้าต่างตรวจสอบหลักฐานคู่">${inv.iv_number}</span>
+                ${inv.transferred_from_iv ? `<div style="font-size: 10px; color: #c084fc; font-weight: 700; margin-top: 2px;">🔄 รับจาก #${inv.transferred_from_iv}</div>` : ''}
               </td>
               <td>
                 <div style="font-size: 12px; font-weight: 600;">${inv.invoice_date}</div>
@@ -9818,7 +11552,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           return;
         }
 
-        const waiting = (App.state.invoices || []).filter(i => i.status === 'WAITING_APPROVAL');
+        const waiting = (App.state.invoices || []).filter(i => i.status === 'WAITING_APPROVAL' || i.status === 'TRANSFERRED');
         if (waiting.length === 0) {
           App.showToast('ไม่มีบิลที่รอการอนุมัติในขณะนี้', 'info');
           return;
@@ -9901,8 +11635,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         document.getElementById('slipModalTitle').innerText = 'ศูนย์ตรวจสอบหลักฐานคู่ (บิลขาย IV + สลิป / เช็ค / Statement) #' + inv.iv_number;
 
-        const hasPayment = (parseFloat(inv.paid_amount) > 0) || !!inv.slip_data || inv.status === 'PAID' || inv.status === 'WAITING_APPROVAL';
-        const isUnpaid = !hasPayment || (inv.status === 'UNPAID' && !inv.slip_data && (parseFloat(inv.paid_amount) || 0) === 0);
+        const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
+        const hasPayment = (parseFloat(inv.paid_amount) > 0) || !!inv.slip_data || inv.status === 'PAID' || inv.status === 'WAITING_APPROVAL' || isTransferred;
+        const isUnpaid = !isTransferred && (!hasPayment || (inv.status === 'UNPAID' && !inv.slip_data && (parseFloat(inv.paid_amount) || 0) === 0));
 
         const slip = inv.slip_data || null;
 
@@ -9940,9 +11675,95 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             '</div>';
         }
 
+        const bundleInfo = App.getBundledInvoicesFor(inv);
+        let bundledAlertHtml = '';
+
+        if (bundleInfo.isBundled) {
+          const totalBillsCount = bundleInfo.pairedInvoices.length + 1;
+          const pairedHtml = bundleInfo.pairedInvoices.map(p => `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: #93c5fd; padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.12);">
+              <span>🔗 จ่ายคู่กับบิล: <strong class="font-mono" style="color: #60a5fa; cursor: pointer; text-decoration: underline;" onclick="SlipInspectModal.open('${p.id}')" title="คลิกเพื่อสลับไปดูบิลนี้">${p.iv_number}</strong> (${p.customer_name})</span>
+              <span class="font-mono" style="font-weight: 700; color: #38bdf8;">ตัดยอด ${App.formatCurrency(p.paid_amount)}</span>
+            </div>
+          `).join('');
+
+          bundledAlertHtml = `
+            <div style="background: linear-gradient(135deg, rgba(30, 58, 138, 0.45) 0%, rgba(88, 28, 135, 0.45) 100%); border: 1.5px solid #3b82f6; border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 12px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="font-weight: 700; color: #93c5fd; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                  <span>⚡ รายการโอนแบบรวมบิล (ชำระร่วมกัน ${totalBillsCount} บิล)</span>
+                </div>
+                <span class="badge badge-transfer" style="font-size: 11px;">ยอดสลิปรวม ${App.formatCurrency(bundleInfo.totalPaymentAmount)}</span>
+              </div>
+              <div style="font-size: 11.5px; color: #cbd5e1; margin-bottom: 8px;">
+                สลิป/หลักฐานนี้ถูกใช้ตัดยอดชำระหลายบิลพร้อมกัน โดยมีรายการบิลที่จ่ายร่วมกันดังนี้:
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.75); border-radius: 6px; padding: 8px 10px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: #34d399;">
+                  <span>👉 บิลปัจจุบัน: ${inv.iv_number} (${cust.name})</span>
+                  <span class="font-mono">ตัดยอด ${App.formatCurrency(inv.paid_amount)}</span>
+                </div>
+                ${pairedHtml}
+              </div>
+            </div>
+          `;
+        }
+
         let rightColumnHtml = '';
 
-        if (isUnpaid) {
+        if (isTransferred) {
+          // --- TRANSFERRED TO STOREFRONT / SPLIT RE-SALE STATE ---
+          const tData = inv.transfer_data || { transferred_by: '-', transferred_at: '-', reason: '-', destinations: [] };
+          const destListHtml = (tData.destinations || []).map((d, i) => `
+            <div style="background: var(--bg-surface); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 700; color: var(--text-primary); font-size: 12.5px;">
+                  <span>🏪 ${i + 1}. ${d.customer_name}</span>
+                  <span class="font-mono text-muted" style="font-size: 11px;">(${d.customer_code || '-'})</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                  บิลรับช่วงต่อ: <strong class="font-mono text-emerald">${d.child_iv_number}</strong> ${d.note ? `• <em>${d.note}</em>` : ''}
+                </div>
+              </div>
+              <div class="font-mono text-emerald" style="font-size: 15px; font-weight: 800;">
+                ฿${App.formatCurrency(d.allocated_amount)}
+              </div>
+            </div>
+          `).join('');
+
+          rightColumnHtml = `
+            <div style="background: var(--bg-surface-elevated); border: 1.5px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                  <div style="font-weight: 700; font-size: 13.5px; color: #c084fc; display: flex; align-items: center; gap: 6px;">
+                    <span>🔄 2. ประวัติการย้ายขายหน้าร้าน / ส่งต่อแบ่งขาย</span>
+                  </div>
+                  <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-weight: 700;">ส่งต่อ ${tData.destinations?.length || 1} ร้าน</span>
+                </div>
+
+                <div style="background: linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(30, 41, 59, 0.5) 100%); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 12px;">
+                  <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px;">
+                    • ผู้ส่งต่อ: <strong>${tData.transferred_by || '-'}</strong> | วันที่: <strong>${tData.transferred_at || '-'}</strong>
+                  </div>
+                  <div style="font-size: 12px; color: #fef08a;">
+                    • เหตุผลที่ส่งต่อ: <strong>${tData.reason || 'สินค้าติดปัญหาระหว่างส่ง'}</strong>
+                  </div>
+                </div>
+
+                <div style="font-size: 12px; font-weight: 700; color: #c084fc; margin-bottom: 6px;">📋 รายการร้านค้าที่รับช่วงซื้อต่อ & ยอดแบ่งขาย:</div>
+                <div style="max-height: 200px; overflow-y: auto;">
+                  ${destListHtml}
+                </div>
+              </div>
+
+              <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 12px; color: var(--text-muted);">รวมยอดที่จัดสรรแบ่งขาย:</span>
+                <strong class="font-mono text-emerald" style="font-size: 16px;">฿${App.formatCurrency(tData.total_allocated || inv.total_amount)}</strong>
+              </div>
+            </div>
+          `;
+
+        } else if (isUnpaid) {
           // --- UNPAID STATE (NO SLIP / PENDING PAYMENT) ---
           rightColumnHtml =
             '<div style="background: var(--bg-surface-elevated); border: 1.5px solid rgba(239, 68, 68, 0.35); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">' +
@@ -9981,6 +11802,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             '</button>' +
             '<button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12.5px; padding: 7px 12px;" onclick="SlipInspectModal.recordPaymentForCurrent(\'CASH\')">' +
             '<span>💵 บันทึกรับเงินสดหน้าร้าน (฿' + App.formatCurrency(inv.outstanding_amount) + ')</span>' +
+            '</button>' +
+            '<button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12.5px; padding: 7px 12px; color: #c084fc; border-color: rgba(168, 85, 247, 0.4);" onclick="SlipInspectModal.close(); InvoiceTransferModal.open(\'' + inv.id + '\')">' +
+            '<span>🔄 โอนขายหน้าร้าน / แบ่งขายให้ร้านอื่น</span>' +
             '</button>' +
             '</div>' +
             '</div>' +
@@ -10088,6 +11912,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             '<span class="badge badge-paid">' + rightBadgeLabel + '</span>' +
             '</div>' +
 
+            bundledAlertHtml +
+
             rightProofHtml +
 
             '<div class="bank-slip-card" style="margin-top: 0; padding: 12px; flex: 1;">' +
@@ -10129,14 +11955,26 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         const statusBadgeHtml = inv.status === 'PAID'
           ? '<span class="badge badge-paid" style="font-size: 12px; padding: 4px 10px;">● ปิดบิลสมบูรณ์แล้ว</span>'
-          : inv.status === 'WAITING_APPROVAL'
-            ? '<span class="badge badge-waiting" style="font-size: 12px; padding: 4px 10px;">⏳ ชำระครบ รอ CEO อนุมัติ</span>'
-            : inv.status === 'PARTIAL'
-              ? '<span class="badge badge-partial" style="font-size: 12px; padding: 4px 10px;">⚠️ ชำระบางส่วน</span>'
-              : '<span class="badge badge-unpaid" style="font-size: 12px; padding: 4px 10px;">🔴 ค้างชำระ</span>';
+          : inv.status === 'TRANSFERRED'
+            ? '<span class="badge" style="background: rgba(168, 85, 247, 0.25); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 12px; padding: 4px 10px;">🔄 ส่งต่อ (รอ CEO ประเมิน)</span>'
+            : inv.status === 'WAITING_APPROVAL'
+              ? '<span class="badge badge-waiting" style="font-size: 12px; padding: 4px 10px;">⏳ ชำระครบ รอ CEO อนุมัติ</span>'
+              : inv.status === 'PARTIAL'
+                ? '<span class="badge badge-partial" style="font-size: 12px; padding: 4px 10px;">⚠️ ชำระบางส่วน</span>'
+                : '<span class="badge badge-unpaid" style="font-size: 12px; padding: 4px 10px;">🔴 ค้างชำระ</span>';
 
         let bottomSummaryHtml = '';
-        if (isUnpaid) {
+        if (isTransferred) {
+          bottomSummaryHtml = `
+            <div style="background: linear-gradient(135deg, rgba(88, 28, 135, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%); border: 1.5px solid rgba(168, 85, 247, 0.35); border-radius: var(--radius-md); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; color: #e9d5ff; flex-wrap: wrap;">
+                <span style="font-weight: 700; color: #c084fc;">🔄 บิลนี้ปิดยอดแบบส่งต่อเรียบร้อยแล้ว</span>
+                <span style="color: #cbd5e1;">สร้างบิลลูกรับช่วงต่อ ${inv.transfer_data?.destinations?.length || 1} รายการเพื่อติดตามรับเงินแล้ว รอ CEO ประเมินปิดบิล</span>
+              </div>
+              ${approvedTag || '<span class="badge" style="background: #a855f7; color: #fff;">รอ CEO ประเมิน</span>'}
+            </div>
+          `;
+        } else if (isUnpaid) {
           bottomSummaryHtml =
             '<div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: var(--radius-md); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">' +
             '<div style="display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--text-primary); flex-wrap: wrap;">' +
@@ -10156,6 +11994,15 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             '</div>';
         }
 
+        const transferredBannerHtml = inv.transferred_from_iv ? `
+          <div style="background: rgba(168, 85, 247, 0.15); border: 1.5px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="font-size: 12.5px; color: #e9d5ff; display: flex; align-items: center; gap: 6px;">
+              <span>📦</span> <span><strong>บิลนี้รับสินค้าส่งต่อมาจากบิลต้นทาง:</strong> <strong class="font-mono text-emerald" style="cursor: pointer; text-decoration: underline;" onclick="SlipInspectModal.open('${inv.transferred_from_id || ''}')" title="คลิกเพื่อสลับไปดูบิลต้นทาง">#${inv.transferred_from_iv}</strong></span>
+            </div>
+            <span class="badge" style="background: #a855f7; color: #fff; font-size: 11px;">บิลรับช่วงต่อ (Re-assigned)</span>
+          </div>
+        ` : '';
+
         document.getElementById('slipModalBody').innerHTML =
           '<div style="background: var(--bg-surface-elevated); padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 14px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">' +
           '<div>' +
@@ -10169,6 +12016,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           '</div>' +
           '<div>' + statusBadgeHtml + '</div>' +
           '</div>' +
+
+          transferredBannerHtml +
 
           '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;" class="dual-proof-grid">' +
 
@@ -10226,11 +12075,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           bottomSummaryHtml;
 
         const btnApprove = document.getElementById('btnModalApproveAction');
-        if (isUnpaid || inv.status === 'PAID' || inv.status === 'PARTIAL') {
+        if (isUnpaid || (inv.status === 'PAID' && !isTransferred) || inv.status === 'PARTIAL') {
           btnApprove.style.display = 'none';
         } else {
           btnApprove.style.display = 'inline-flex';
-          btnApprove.innerHTML = isCeo ? '<span>✓ อนุมัติปิดบิลสมบูรณ์ (CEO Approve)</span>' : '<span>🔒 บัญชี Staff (รอ CEO อนุมัติ)</span>';
+          btnApprove.innerHTML = isCeo 
+            ? (isTransferred ? '<span>✓ อนุมัติประเมินการส่งต่อบิล (CEO Approve)</span>' : '<span>✓ อนุมัติปิดบิลสมบูรณ์ (CEO Approve)</span>')
+            : '<span>🔒 บัญชี Staff (รอ CEO อนุมัติ)</span>';
           btnApprove.disabled = !isCeo;
         }
 
@@ -10267,6 +12118,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const inv = App.state.invoices.find(i => i.id === this.currentInvId);
         if (!inv) return;
 
+        const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
+
         inv.status = 'PAID';
         inv.approved_by = 'คุณศุภรัตน์ (CEO)';
         inv.approved_at = App.getLocalDateTimeStr();
@@ -10275,16 +12128,18 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
           timestamp: App.getLocalDateTimeStr(),
           user: 'คุณศุภรัตน์ (CEO)',
-          action: 'CEO_APPROVED',
+          action: isTransferred ? 'CEO_TRANSFER_APPROVED' : 'CEO_APPROVED',
           table_name: 'invoices',
           record_id: inv.iv_number,
-          detail: `CEO ตรวจสอบหลักฐานคู่บิลขาย ${inv.iv_number} และหลักฐานการชำระเงินสมบูรณ์ (จัดเก็บหลักฐานถาวร)`
+          detail: isTransferred 
+            ? `CEO ตรวจสอบและอนุมัติประเมินการส่งต่อบิลขาย #${inv.iv_number} (ย้ายขายหน้าร้าน/ส่งต่อ ${inv.transfer_data?.destinations?.length || 1} ร้าน) สมบูรณ์`
+            : `CEO ตรวจสอบหลักฐานคู่บิลขาย ${inv.iv_number} และหลักฐานการชำระเงินสมบูรณ์ (จัดเก็บหลักฐานถาวร)`
         });
 
         DataManager.save(App.state);
         App.refreshAllViews();
         this.close();
-        App.showToast(`อนุมัติปิดบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว`, 'success');
+        App.showToast(isTransferred ? `CEO อนุมัติประเมินการส่งต่อบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว` : `อนุมัติปิดบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว`, 'success');
       }
     };
 
@@ -10689,6 +12544,399 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
       }
     };
 
+    // 15.0 INVOICE STOREFRONT TRANSFER & MULTI-STORE SPLITTING CONTROLLER
+    const InvoiceTransferModal = {
+      currentInvId: null,
+      destinations: [],
+
+      open(invoiceId) {
+        this.currentInvId = invoiceId;
+        const inv = App.state.invoices.find(i => i.id === invoiceId);
+        if (!inv) return;
+
+        const cust = App.state.customers.find(c => c.id === inv.customer_id) || { name: 'ลูกค้าทั่วไป', code: '-' };
+        const debt = Math.max(0, (inv.outstanding_amount !== undefined ? inv.outstanding_amount : (inv.total_amount - (inv.paid_amount || 0))));
+
+        document.getElementById('transferOrigIvNumber').innerText = inv.iv_number;
+        document.getElementById('transferOrigDate').innerText = inv.invoice_date || '-';
+        document.getElementById('transferOrigVehicle').innerText = inv.delivery_vehicle || 'ไม่ระบุสายส่ง';
+        document.getElementById('transferOrigCustName').innerText = `${cust.name} (${cust.code})`;
+        document.getElementById('transferOrigAmount').innerText = App.formatCurrency(debt > 0 ? debt : inv.total_amount);
+
+        document.getElementById('transferHudOrigTotal').innerText = App.formatCurrency(debt > 0 ? debt : inv.total_amount);
+        document.getElementById('transferReasonInput').value = '';
+
+        // Ensure Storefront default customer exists
+        if (!App.state.customers.some(c => c.id === 'CUST-STOREFRONT' || c.name.includes('หน้าร้าน'))) {
+          App.state.customers.unshift({
+            id: 'CUST-STOREFRONT',
+            code: 'AR-FRONT',
+            name: 'ลูกค้าหน้าร้าน (Storefront / Walk-in)',
+            phone: '02-415-8899',
+            address: 'หน้าร้านสำนักงานใหญ่ (กทม.)'
+          });
+        }
+
+        // Initialize with 1 default destination row for the full amount
+        const initialAmount = debt > 0 ? debt : inv.total_amount;
+        this.destinations = [
+          {
+            id: 'DEST-' + Date.now() + '-1',
+            customerId: 'CUST-STOREFRONT',
+            amount: initialAmount,
+            note: 'ย้ายขายหน้าร้าน (บิลเดิมติดปัญหาส่ง)'
+          }
+        ];
+
+        this.renderRows();
+        this.updateCalculations();
+
+        document.getElementById('invoiceTransferModal').classList.add('active');
+      },
+
+      addRow() {
+        const inv = App.state.invoices.find(i => i.id === this.currentInvId);
+        const debt = inv ? Math.max(0, (inv.outstanding_amount !== undefined ? inv.outstanding_amount : (inv.total_amount - (inv.paid_amount || 0)))) : 0;
+        const totalOrig = debt > 0 ? debt : (inv?.total_amount || 0);
+
+        const currentAllocSum = this.destinations.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+        const remaining = Math.max(0, totalOrig - currentAllocSum);
+
+        const firstOtherCust = App.state.customers.find(c => c.id !== 'CUST-STOREFRONT') || App.state.customers[0];
+
+        this.destinations.push({
+          id: 'DEST-' + Date.now() + '-' + (this.destinations.length + 1),
+          customerId: firstOtherCust?.id || 'CUST-STOREFRONT',
+          amount: remaining > 0 ? remaining : 0,
+          note: `แบ่งขายให้ร้านที่ ${this.destinations.length + 1}`
+        });
+
+        this.renderRows();
+        this.updateCalculations();
+      },
+
+      removeRow(index) {
+        if (this.destinations.length <= 1) {
+          App.showToast('ต้องมีร้านค้าผู้รับซื้อต่ออย่างน้อย 1 รายการ', 'warning');
+          return;
+        }
+        this.destinations.splice(index, 1);
+        this.renderRows();
+        this.updateCalculations();
+      },
+
+      onCustomerChange(index, value) {
+        if (this.destinations[index]) {
+          this.destinations[index].customerId = value;
+        }
+      },
+
+      onAmountInput(index, value) {
+        if (this.destinations[index]) {
+          this.destinations[index].amount = parseFloat(value) || 0;
+          this.updateCalculations();
+        }
+      },
+
+      onNoteInput(index, value) {
+        if (this.destinations[index]) {
+          this.destinations[index].note = value;
+        }
+      },
+
+      renderRows() {
+        const container = document.getElementById('transferDestinationsContainer');
+        if (!container) return;
+
+        const customers = App.state.customers || [];
+
+        container.innerHTML = this.destinations.map((dest, idx) => {
+          const custOptions = customers.map(c => `
+            <option value="${c.id}" ${c.id === dest.customerId ? 'selected' : ''}>
+              ${c.id === 'CUST-STOREFRONT' ? '🏪 ' : '🏢 '} ${c.name} (${c.code})
+            </option>
+          `).join('');
+
+          return `
+            <div style="background: var(--bg-surface); border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 14px; position: relative;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="badge badge-doc" style="font-size: 11px; font-weight: 700;">
+                  ร้านที่ ${idx + 1}
+                </span>
+                ${this.destinations.length > 1 ? `
+                  <button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--status-unpaid);" onclick="InvoiceTransferModal.removeRow(${idx})" title="ลบรายการนี้">
+                    🗑️ ลบ
+                  </button>
+                ` : ''}
+              </div>
+
+              <div class="form-row" style="margin-bottom: 8px;">
+                <div class="form-group" style="flex: 2;">
+                  <label class="form-label" style="font-size: 11.5px;">เลือกลูกค้า / ร้านที่รับซื้อต่อ *</label>
+                  <select class="form-select" onchange="InvoiceTransferModal.onCustomerChange(${idx}, this.value)" style="font-size: 12.5px;">
+                    ${custOptions}
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1.2;">
+                  <label class="form-label" style="font-size: 11.5px;">ยอดเงินที่รับแบ่งไป (บาท) *</label>
+                  <input type="number" step="0.01" class="form-input font-mono" style="font-weight: 700; color: var(--primary);" value="${dest.amount || ''}" placeholder="0.00" oninput="InvoiceTransferModal.onAmountInput(${idx}, this.value)">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <input type="text" class="form-input" style="font-size: 12px; padding: 6px 10px;" value="${dest.note || ''}" placeholder="หมายเหตุ เช่น แบ่งขายงวด 1, เปลี่ยนส่งสาขา 2" oninput="InvoiceTransferModal.onNoteInput(${idx}, this.value)">
+              </div>
+            </div>
+          `;
+        }).join('');
+      },
+
+      updateCalculations() {
+        const inv = App.state.invoices.find(i => i.id === this.currentInvId);
+        if (!inv) return;
+
+        const debt = Math.max(0, (inv.outstanding_amount !== undefined ? inv.outstanding_amount : (inv.total_amount - (inv.paid_amount || 0))));
+        const origTotal = debt > 0 ? debt : inv.total_amount;
+
+        const allocatedTotal = this.destinations.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+        const remaining = origTotal - allocatedTotal;
+
+        const elAlloc = document.getElementById('transferHudAllocatedTotal');
+        const elRem = document.getElementById('transferHudRemaining');
+        const noticeEl = document.getElementById('transferDiscrepancyNotice');
+
+        if (elAlloc) elAlloc.innerText = App.formatCurrency(allocatedTotal);
+        if (elRem) {
+          elRem.innerText = App.formatCurrency(Math.abs(remaining));
+          if (Math.abs(remaining) < 0.01) {
+            elRem.style.color = 'var(--status-paid)';
+            elRem.innerText = '฿0.00 (ครบยอดพอดี)';
+          } else if (remaining > 0) {
+            elRem.style.color = 'var(--status-partial)';
+            elRem.innerText = `฿${App.formatCurrency(remaining)} (ยังไม่ครบ)`;
+          } else {
+            elRem.style.color = 'var(--status-unpaid)';
+            elRem.innerText = `+฿${App.formatCurrency(Math.abs(remaining))} (เกินยอดบิลเดิม)`;
+          }
+        }
+
+        if (noticeEl) {
+          if (Math.abs(remaining) < 0.01) {
+            noticeEl.style.display = 'block';
+            noticeEl.style.background = 'rgba(16, 185, 129, 0.12)';
+            noticeEl.style.color = '#047857';
+            noticeEl.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+            noticeEl.innerHTML = `✓ จัดสรรยอดเงินครบถ้วนพอดีกับยอดบิลต้นทาง (฿${App.formatCurrency(origTotal)})`;
+          } else if (remaining > 0) {
+            noticeEl.style.display = 'block';
+            noticeEl.style.background = 'rgba(245, 158, 11, 0.12)';
+            noticeEl.style.color = '#d97706';
+            noticeEl.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+            noticeEl.innerHTML = `⚠️ ยอดที่จัดสรรยังไม่ครบยอดบิลเดิม ขาดอีก ฿${App.formatCurrency(remaining)} (สามารถยืนยันได้หากต้องการแบ่งขายบางส่วน)`;
+          } else {
+            noticeEl.style.display = 'block';
+            noticeEl.style.background = 'rgba(239, 68, 68, 0.12)';
+            noticeEl.style.color = '#ef4444';
+            noticeEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            noticeEl.innerHTML = `⚠️ ยอดจัดสรรรวม (฿${App.formatCurrency(allocatedTotal)}) เกินกว่ายอดบิลเดิม (฿${App.formatCurrency(origTotal)}) จำนวน ฿${App.formatCurrency(Math.abs(remaining))}`;
+          }
+        }
+      },
+
+      close() {
+        document.getElementById('invoiceTransferModal')?.classList.remove('active');
+      },
+
+      confirmTransfer() {
+        const inv = App.state.invoices.find(i => i.id === this.currentInvId);
+        if (!inv) return;
+
+        if (!this.destinations || this.destinations.length === 0) {
+          App.showToast('กรุณาระบุร้านค้าผู้รับซื้อต่ออย่างน้อย 1 รายการ', 'warning');
+          return;
+        }
+
+        for (let i = 0; i < this.destinations.length; i++) {
+          const d = this.destinations[i];
+          if (!d.amount || d.amount <= 0) {
+            App.showToast(`กรุณาระบุจำนวนเงินที่ถูกต้องสำหรับร้านที่ ${i + 1}`, 'warning');
+            return;
+          }
+        }
+
+        const reason = document.getElementById('transferReasonInput')?.value.trim() || 'สินค้าติดปัญหาระหว่างส่ง โอนขายต่อหน้าร้าน/ร้านอื่น';
+        const actor = App.state.currentUserRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : (App.state.currentUserRole === 'ADMIN' ? 'ผู้ดูแลระบบ (Admin)' : 'พนักงานฝ่ายขาย');
+        const nowStr = App.getLocalDateTimeStr();
+        const todayDate = App.getLocalDateStr();
+
+        const createdChildInvoices = [];
+        const destinationSummaries = [];
+
+        this.destinations.forEach((dest, idx) => {
+          const targetCust = App.state.customers.find(c => c.id === dest.customerId) || { name: 'ลูกค้าหน้าร้าน', code: 'AR-FRONT' };
+          const childIvNumber = `${inv.iv_number}-R${idx + 1}`;
+          const childId = 'INV-T-' + Date.now().toString().slice(-4) + '-' + (idx + 1);
+
+          const childInv = {
+            id: childId,
+            iv_number: childIvNumber,
+            doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
+            customer_id: targetCust.id,
+            customer_name: targetCust.name,
+            invoice_date: todayDate,
+            due_date: todayDate,
+            delivery_vehicle: 'หน้าร้าน / เปลี่ยนสายส่ง',
+            salesperson: inv.salesperson || 'พนักงานขาย',
+            total_amount: dest.amount,
+            paid_amount: 0,
+            outstanding_amount: dest.amount,
+            status: 'UNPAID',
+            transferred_from_iv: inv.iv_number,
+            transferred_from_id: inv.id,
+            transfer_note: dest.note || reason,
+            items: (inv.items && inv.items.length > 0) ? inv.items.map(it => ({ ...it, total_price: dest.amount })) : [
+              { no: 1, name: `สินค้าแบ่งรับช่วงต่อจากบิล #${inv.iv_number}`, quantity: 1, unit: 'งวด', unit_price: dest.amount, total_price: dest.amount }
+            ],
+            amount_text: '',
+            source_file: inv.source_file || '',
+            slip_data: null
+          };
+
+          App.state.invoices.unshift(childInv);
+          createdChildInvoices.push(childInv);
+          destinationSummaries.push({
+            customer_id: targetCust.id,
+            customer_name: targetCust.name,
+            customer_code: targetCust.code,
+            allocated_amount: dest.amount,
+            child_iv_number: childIvNumber,
+            child_id: childId,
+            note: dest.note || ''
+          });
+        });
+
+        // Update Original Invoice to TRANSFERRED (Closed for re-evaluation by CEO)
+        inv.status = 'TRANSFERRED';
+        inv.transfer_data = {
+          is_transferred: true,
+          transferred_at: nowStr,
+          transferred_by: actor,
+          reason: reason,
+          destinations: destinationSummaries,
+          total_allocated: destinationSummaries.reduce((s, d) => s + d.allocated_amount, 0),
+          original_total: inv.total_amount
+        };
+
+        // Audit Log
+        App.state.audit_logs.unshift({
+          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          timestamp: nowStr,
+          user: actor,
+          action: 'TRANSFER_INVOICE_STOREFRONT',
+          table_name: 'invoices',
+          record_id: inv.iv_number,
+          detail: `ย้ายบิล #${inv.iv_number} เป็นขายหน้าร้าน/ส่งต่อให้ ${destinationSummaries.length} ร้าน [${destinationSummaries.map(d => d.customer_name + ' ฿' + App.formatCurrency(d.allocated_amount)).join(', ')}] เหตุผล: ${reason}`
+        });
+
+        DataManager.save(App.state);
+        this.close();
+        App.refreshAllViews();
+
+        App.showToast(`🔄 โอนย้ายบิล #${inv.iv_number} เป็นขายหน้าร้าน (${destinationSummaries.length} บิลรับช่วงต่อ) สำเร็จ! ส่งให้ CEO ประเมิน`, 'success');
+      }
+    };
+
+    // 15. ADMIN INVOICE EDIT MODAL CONTROLLER
+    const InvoiceEditModal = {
+      currentInvId: null,
+
+      open(invoiceId) {
+        if (App.state.currentUserRole !== 'ADMIN') {
+          App.showToast('⚠️ สงวนสิทธิ์การแก้ไขบิลเฉพาะผู้ดูแลระบบ (Admin) เท่านั้น', 'warning');
+          return;
+        }
+        this.currentInvId = invoiceId;
+        const inv = App.state.invoices.find(i => i.id === invoiceId);
+        if (!inv) return;
+
+        // Populate customer options
+        const custSelect = document.getElementById('editCustomerId');
+        if (custSelect) {
+          custSelect.innerHTML = App.state.customers.map(c => `
+            <option value="${c.id}" ${c.id === inv.customer_id ? 'selected' : ''}>${c.name} (${c.code})</option>
+          `).join('');
+        }
+
+        document.getElementById('editInvId').value = inv.id;
+        document.getElementById('editIvNumber').value = inv.iv_number || '';
+        document.getElementById('editDocType').value = inv.doc_type || 'ใบส่งของชั่วคราว';
+        document.getElementById('editInvoiceDate').value = inv.invoice_date || '';
+        document.getElementById('editDueDate').value = inv.due_date || '';
+        document.getElementById('editDeliveryVehicle').value = inv.delivery_vehicle || '';
+        document.getElementById('editStatus').value = inv.status || 'UNPAID';
+        document.getElementById('editTotalAmount').value = inv.total_amount || 0;
+        document.getElementById('editPaidAmount').value = inv.paid_amount || 0;
+
+        document.getElementById('editModalSubTitle').innerText = `แก้ไขบิลเลขที่ ${inv.iv_number}`;
+        this.calcOutstanding();
+
+        document.getElementById('invoiceEditModal').classList.add('active');
+      },
+
+      calcOutstanding() {
+        const total = parseFloat(document.getElementById('editTotalAmount')?.value) || 0;
+        const paid = parseFloat(document.getElementById('editPaidAmount')?.value) || 0;
+        const outstanding = Math.max(0, total - paid);
+        const preview = document.getElementById('editOutstandingPreview');
+        if (preview) preview.innerText = App.formatCurrency(outstanding);
+      },
+
+      close() {
+        document.getElementById('invoiceEditModal').classList.remove('active');
+      },
+
+      save() {
+        if (App.state.currentUserRole !== 'ADMIN') {
+          App.showToast('⚠️ สงวนสิทธิ์การแก้ไขบิลเฉพาะผู้ดูแลระบบ (Admin) เท่านั้น', 'warning');
+          return;
+        }
+        const inv = App.state.invoices.find(i => i.id === this.currentInvId);
+        if (!inv) return;
+
+        const oldIvNumber = inv.iv_number;
+        const total = parseFloat(document.getElementById('editTotalAmount').value) || 0;
+        const paid = parseFloat(document.getElementById('editPaidAmount').value) || 0;
+        const outstanding = Math.max(0, total - paid);
+
+        inv.iv_number = document.getElementById('editIvNumber').value.trim();
+        inv.doc_type = document.getElementById('editDocType').value.trim() || 'ใบส่งของชั่วคราว';
+        inv.invoice_date = document.getElementById('editInvoiceDate').value;
+        inv.due_date = document.getElementById('editDueDate').value;
+        inv.customer_id = document.getElementById('editCustomerId').value;
+        inv.delivery_vehicle = document.getElementById('editDeliveryVehicle').value.trim();
+        inv.status = document.getElementById('editStatus').value;
+        inv.total_amount = total;
+        inv.paid_amount = paid;
+        inv.outstanding_amount = outstanding;
+
+        // Audit Log
+        App.state.audit_logs.unshift({
+          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          timestamp: App.getLocalDateTimeStr(),
+          user: 'ผู้ดูแลระบบ (Admin)',
+          action: 'EDIT_INVOICE',
+          table_name: 'invoices',
+          record_id: inv.iv_number,
+          detail: `Admin แก้ไขข้อมูลบิล ${oldIvNumber} -> ยอดรวม ${App.formatCurrency(total)}, ชำระ ${App.formatCurrency(paid)}, สถานะ ${inv.status}`
+        });
+
+        DataManager.save(App.state);
+        this.close();
+        App.refreshAllViews();
+        App.showToast(`บันทึกการแก้ไขบิล #${inv.iv_number} สำเร็จ`, 'success');
+      }
+    };
+
     const InvoiceView = {
       statusFilter: 'ALL',
 
@@ -10733,6 +12981,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
       renderTable(invoices) {
         const tbody = document.getElementById('invoicesTableBody');
         const customers = App.state.customers;
+        const isAdmin = App.state.currentUserRole === 'ADMIN';
 
         if (invoices.length === 0) {
           tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:36px; color:var(--text-muted);">ไม่พบรายการบิลขายที่ตรงกับเงื่อนไข</td></tr>`;
@@ -10748,6 +12997,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               <td class="font-mono" style="font-weight: 700; color: var(--primary); cursor: pointer;" onclick="InvoiceDocModal.open('${inv.id}')" title="คลิกเพื่อดูบิลกระดาษต่อเนื่อง">
                 <div>${inv.iv_number}</div>
                 <div style="font-size: 10.5px; color: var(--text-muted); font-weight: normal;">${inv.doc_type || 'ใบส่งของชั่วคราว'}</div>
+                ${inv.transferred_from_iv ? `<div style="font-size: 10.5px; color: #c084fc; font-weight: 700; margin-top: 3px; display: inline-flex; align-items: center; gap: 2px;" title="รับช่วงต่อจากบิล #${inv.transferred_from_iv}"><span>🔄 รับจาก #${inv.transferred_from_iv}</span></div>` : ''}
               </td>
               <td><strong>${inv.invoice_date}</strong></td>
               <td class="font-mono">${cust.code}</td>
@@ -10758,6 +13008,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
                   ${cust.phone && cust.phone !== '-' ? `<span>📞 ${cust.phone}</span>` : ''}
                   ${inv.items?.length ? `<span>📦 ${inv.items.length} รายการ</span>` : ''}
                 </div>
+                ${inv.transfer_data ? `<div style="font-size: 11px; color: #c084fc; font-weight: 600; margin-top: 4px; background: rgba(168, 85, 247, 0.1); padding: 3px 8px; border-radius: 4px; border: 1px dashed rgba(168, 85, 247, 0.3);">🔄 โอนขายหน้าร้าน/ส่งต่อให้: ${(inv.transfer_data.destinations || []).map(d => `${d.customer_name} (฿${App.formatCurrency(d.allocated_amount)})`).join(', ')}</div>` : ''}
               </td>
               <td><span style="font-size:12px; color:var(--text-secondary); font-weight: 500;">🚛 ${inv.delivery_vehicle || '-'}</span></td>
               <td style="text-align: right;" class="font-mono font-weight: 700">
@@ -10768,18 +13019,70 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               <td style="text-align: right; color: var(--status-unpaid);" class="font-mono font-weight: 700;">${App.formatCurrency(inv.outstanding_amount)}</td>
               <td style="text-align: center;">${this.renderStatusBadge(inv.status)}</td>
               <td style="text-align: center;">
-                <div style="display: flex; gap: 4px; justify-content: center;">
+                <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
                   <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px;" onclick="InvoiceDocModal.open('${inv.id}')" title="ดูบิลกระดาษต่อเนื่อง (Dot-Matrix Continuous Form)">
                     📑 บิลต่อเนื่อง
                   </button>
                   <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px;" onclick="SlipInspectModal.open('${inv.id}')" title="ตรวจสลิป / หลักฐานการชำระ">
-                    ${inv.status === 'WAITING_APPROVAL' ? '🔍 ตรวจสลิป' : hasSlip ? '🖼️ ดูสลิป' : 'รายละเอียด'}
+                    ${inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED' ? '🔍 ตรวจสอบ' : hasSlip ? '🖼️ ดูสลิป' : 'รายละเอียด'}
                   </button>
+                  ${(inv.status === 'UNPAID' || inv.status === 'PARTIAL') ? `
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px; color: #c084fc; border-color: rgba(168, 85, 247, 0.4);" onclick="InvoiceTransferModal.open('${inv.id}')" title="ย้ายบิลเป็นขายหน้าร้าน / ส่งต่อให้ร้านอื่น">
+                      🔄 โอนขายหน้าร้าน
+                    </button>
+                  ` : ''}
+                  ${isAdmin ? `
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px; color: #60a5fa; border-color: rgba(96, 165, 250, 0.4);" onclick="InvoiceEditModal.open('${inv.id}')" title="แก้ไขข้อมูลบิล (เฉพาะ Admin)">
+                      ✏️ แก้ไข
+                    </button>
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px; color: var(--status-unpaid); border-color: rgba(239, 68, 68, 0.4);" onclick="InvoiceView.deleteInvoice('${inv.id}')" title="ลบบิลออกจากระบบ (เฉพาะ Admin)">
+                      🗑️ ลบ
+                    </button>
+                  ` : ''}
                 </div>
               </td>
             </tr>
           `;
         }).join('');
+      },
+
+      deleteInvoice(invoiceId) {
+        if (App.state.currentUserRole !== 'ADMIN') {
+          App.showToast('⚠️ สงวนสิทธิ์การลบบิลเฉพาะผู้ดูแลระบบ (Admin) เท่านั้น', 'warning');
+          return;
+        }
+
+        const inv = App.state.invoices.find(i => i.id === invoiceId);
+        if (!inv) return;
+
+        const cust = App.state.customers.find(c => c.id === inv.customer_id) || { name: 'ไม่ระบุ' };
+
+        const confirmMsg = `⚠️ ยืนยันการลบบิลขายถาวร (Admin Only)\n\nเลขที่บิล: ${inv.iv_number}\nลูกค้า: ${cust.name}\nยอดเงิน: ${App.formatCurrency(inv.total_amount)}\n\nต้องการลบรายการนี้ออกจากระบบหรือไม่?`;
+        if (!confirm(confirmMsg)) return;
+
+        // Remove from invoices array
+        const idx = App.state.invoices.findIndex(i => i.id === invoiceId);
+        if (idx !== -1) {
+          App.state.invoices.splice(idx, 1);
+        }
+
+        // Clean up linked allocations
+        App.state.payment_allocations = (App.state.payment_allocations || []).filter(a => a.invoice_id !== invoiceId);
+
+        // Audit log
+        App.state.audit_logs.unshift({
+          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          timestamp: App.getLocalDateTimeStr(),
+          user: 'ผู้ดูแลระบบ (Admin)',
+          action: 'DELETE_INVOICE',
+          table_name: 'invoices',
+          record_id: inv.iv_number,
+          detail: `Admin ลบบิลขาย #${inv.iv_number} (ลูกค้า: ${cust.name}, ยอด: ${App.formatCurrency(inv.total_amount)}) ออกจากระบบถาวร`
+        });
+
+        DataManager.save(App.state);
+        App.refreshAllViews();
+        App.showToast(`🗑️ ลบบิล #${inv.iv_number} เรียบร้อยแล้ว`, 'info');
       },
 
       renderStatusBadge(status) {
@@ -10788,7 +13091,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           PAID: '<span class="badge badge-paid">● ปิดบิลสมบูรณ์</span>',
           PARTIAL: '<span class="badge badge-partial">● ชำระบางส่วน</span>',
           UNPAID: '<span class="badge badge-unpaid">● ยังไม่ชำระ</span>',
-          OVERPAID: '<span class="badge badge-overpaid">● ชำระเกิน</span>'
+          OVERPAID: '<span class="badge badge-overpaid">● ชำระเกิน</span>',
+          TRANSFERRED: '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">🔄 ส่งต่อ (รอ CEO ประเมิน)</span>'
         };
         return map[status] || `<span class="badge">${status}</span>`;
       }

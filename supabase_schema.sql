@@ -1,13 +1,13 @@
 -- ============================================================================
--- Khuckngurn Flow (กวักเงิน Flow) - Supabase Database Schema & Realtime Setup
+-- Khuckngurn Flow (กวักเงิน Flow) - Complete Supabase Database Schema & Realtime Setup
 -- ============================================================================
--- Copy and run this SQL script in Supabase Dashboard -> SQL Editor
+-- คำแนะนำ: คัดลอกคำสั่ง SQL ทั้งหมดนี้ไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run
 -- ============================================================================
 
--- 1. Enable UUID Extension
+-- 1. Enable Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. CUSTOMERS TABLE
+-- 2. CUSTOMERS TABLE (ข้อมูลลูกค้า / ร้านค้า)
 CREATE TABLE IF NOT EXISTS public.customers (
     id TEXT PRIMARY KEY,
     code TEXT,
@@ -18,15 +18,17 @@ CREATE TABLE IF NOT EXISTS public.customers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. INVOICES TABLE
+-- 3. INVOICES TABLE (ข้อมูลบิลขาย / ใบส่งของชั่วคราว)
 CREATE TABLE IF NOT EXISTS public.invoices (
     id TEXT PRIMARY KEY,
     iv_number TEXT NOT NULL UNIQUE,
     doc_type TEXT DEFAULT 'ใบส่งของชั่วคราว',
     customer_id TEXT,
-    invoice_date DATE DEFAULT CURRENT_DATE,
-    due_date DATE,
+    customer_name TEXT,
+    invoice_date TEXT,
+    due_date TEXT,
     delivery_vehicle TEXT,
+    salesperson TEXT,
     total_amount NUMERIC(15, 2) DEFAULT 0.00,
     paid_amount NUMERIC(15, 2) DEFAULT 0.00,
     outstanding_amount NUMERIC(15, 2) DEFAULT 0.00,
@@ -42,12 +44,12 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. PAYMENTS TABLE
+-- 4. PAYMENTS TABLE (ข้อมูลการรับชำระเงิน)
 CREATE TABLE IF NOT EXISTS public.payments (
     id TEXT PRIMARY KEY,
     payment_number TEXT NOT NULL UNIQUE,
     customer_id TEXT,
-    payment_date DATE DEFAULT CURRENT_DATE,
+    payment_date TEXT,
     payment_type TEXT DEFAULT 'TRANSFER',
     amount NUMERIC(15, 2) DEFAULT 0.00,
     matched_amount NUMERIC(15, 2) DEFAULT 0.00,
@@ -61,7 +63,17 @@ CREATE TABLE IF NOT EXISTS public.payments (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. COMPANY BANK ACCOUNTS TABLE
+-- 5. PAYMENT ALLOCATIONS TABLE (ข้อมูลการตัดยอดบิล)
+CREATE TABLE IF NOT EXISTS public.payment_allocations (
+    id TEXT PRIMARY KEY,
+    payment_id TEXT,
+    invoice_id TEXT,
+    allocated_amount NUMERIC(15, 2) DEFAULT 0.00,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. COMPANY BANK ACCOUNTS TABLE (บัญชีธนาคารของบริษัท)
 CREATE TABLE IF NOT EXISTS public.company_bank_accounts (
     id TEXT PRIMARY KEY,
     bank_code TEXT,
@@ -74,7 +86,7 @@ CREATE TABLE IF NOT EXISTS public.company_bank_accounts (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. AUDIT LOGS TABLE
+-- 7. AUDIT LOGS TABLE (ประวัติการใช้งานและกิจกรรม)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
     id TEXT PRIMARY KEY,
     timestamp TEXT,
@@ -86,7 +98,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. APP STATE FULL BACKUP TABLE (Snapshot Sync)
+-- 8. APP STATE FULL BACKUP TABLE (Snapshot Database สำหรับ Sync ทุกเครื่องทันที)
 CREATE TABLE IF NOT EXISTS public.app_state_backup (
     id TEXT PRIMARY KEY DEFAULT 'main_state',
     state_data JSONB NOT NULL,
@@ -94,12 +106,21 @@ CREATE TABLE IF NOT EXISTS public.app_state_backup (
 );
 
 -- ============================================================================
--- 8. ROW LEVEL SECURITY (RLS) POLICIES (Public read & write for Anon Key)
+-- 9. INDEXES FOR PERFORMANCE
 -- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_invoices_iv_number ON public.invoices (iv_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON public.invoices (customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON public.invoices (status);
+CREATE INDEX IF NOT EXISTS idx_payments_payment_number ON public.payments (payment_number);
+CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON public.payments (customer_id);
 
+-- ============================================================================
+-- 10. ROW LEVEL SECURITY (RLS) POLICIES (Public read & write for Anon Key)
+-- ============================================================================
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_allocations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_bank_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_state_backup ENABLE ROW LEVEL SECURITY;
@@ -108,33 +129,72 @@ ALTER TABLE public.app_state_backup ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public access for customers" ON public.customers;
 DROP POLICY IF EXISTS "Public access for invoices" ON public.invoices;
 DROP POLICY IF EXISTS "Public access for payments" ON public.payments;
+DROP POLICY IF EXISTS "Public access for payment_allocations" ON public.payment_allocations;
 DROP POLICY IF EXISTS "Public access for company_bank_accounts" ON public.company_bank_accounts;
 DROP POLICY IF EXISTS "Public access for audit_logs" ON public.audit_logs;
 DROP POLICY IF EXISTS "Public access for app_state_backup" ON public.app_state_backup;
 
--- Allow all operations for anon role
+-- Allow all operations for anon and authenticated roles
 CREATE POLICY "Public access for customers" ON public.customers FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access for invoices" ON public.invoices FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access for payments" ON public.payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access for payment_allocations" ON public.payment_allocations FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access for company_bank_accounts" ON public.company_bank_accounts FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access for audit_logs" ON public.audit_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access for app_state_backup" ON public.app_state_backup FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================================
--- 9. REALTIME REPLICATION (Instant Multi-Device Synchronization)
+-- 11. REPLICA IDENTITY FULL (For reliable realtime change payloads)
 -- ============================================================================
+ALTER TABLE public.customers REPLICA IDENTITY FULL;
+ALTER TABLE public.invoices REPLICA IDENTITY FULL;
+ALTER TABLE public.payments REPLICA IDENTITY FULL;
+ALTER TABLE public.payment_allocations REPLICA IDENTITY FULL;
+ALTER TABLE public.company_bank_accounts REPLICA IDENTITY FULL;
+ALTER TABLE public.audit_logs REPLICA IDENTITY FULL;
+ALTER TABLE public.app_state_backup REPLICA IDENTITY FULL;
 
--- Add all tables to supabase_realtime publication
+-- ============================================================================
+-- 12. REALTIME REPLICATION (Instant Multi-Device Synchronization)
+-- ============================================================================
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
         CREATE PUBLICATION supabase_realtime;
     END IF;
-END $$;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.payments;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.company_bank_accounts;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.app_state_backup;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.payments;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.payment_allocations;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.company_bank_accounts;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.app_state_backup;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+END $$;
