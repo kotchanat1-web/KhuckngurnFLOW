@@ -2570,7 +2570,7 @@
               <button class="status-btn" onclick="InvoiceView.setStatusFilter('UNPAID', this)">🔴 ยังไม่ชำระ</button>
               <button class="status-btn" onclick="InvoiceView.setStatusFilter('PARTIAL', this)">🟡 ชำระบางส่วน</button>
               <button class="status-btn" onclick="InvoiceView.setStatusFilter('PAID', this)">🟢 ปิดบิลสมบูรณ์</button>
-              <button class="status-btn" onclick="InvoiceView.setStatusFilter('TRANSFERRED', this)">🔄 ส่งต่อ/หน้าร้าน</button>
+              <button class="status-btn" onclick="InvoiceView.setStatusFilter('TRANSFERRED', this)">🔄 ส่งต่อ/สินค้ากลับร้าน</button>
             </div>
           </div>
 
@@ -4240,9 +4240,10 @@
               <select id="editStatus" class="form-select font-mono" required>
                 <option value="UNPAID">🔴 UNPAID (ยังไม่ชำระ)</option>
                 <option value="PARTIAL">🟡 PARTIAL (ชำระบางส่วน)</option>
-                <option value="WAITING_APPROVAL">⏳ WAITING_APPROVAL (ชำระครบรอ CEO ตรวจ)</option>
+                <option value="WAITING_APPROVAL">⏳ WAITING_APPROVAL (ชำระครบ/รอ CEO ตรวจ)</option>
                 <option value="PAID">🟢 PAID (ปิดบิลสมบูรณ์)</option>
                 <option value="OVERPAID">🟣 OVERPAID (ชำระเกิน)</option>
+                <option value="TRANSFERRED">🔄 TRANSFERRED (ส่งต่อ/สินค้ากลับร้าน)</option>
               </select>
             </div>
           </div>
@@ -4261,6 +4262,17 @@
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-sm); margin-top: 10px; border: 1px solid rgba(239, 68, 68, 0.25);">
             <span style="font-size: 12px; color: var(--text-muted);">ยอดหนี้คงค้างคำนวณอัตโนมัติ:</span>
             <strong class="font-mono text-rose" style="font-size: 15px;" id="editOutstandingPreview">฿0.00</strong>
+          </div>
+
+          <!-- Notes / Remarks Field for Admin -->
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label" style="font-weight: 700; color: #fbbf24; display: flex; align-items: center; gap: 6px;">
+              <span>📝</span> <span>หมายเหตุ / สาเหตุการเปลี่ยนสถานะหรือปรับยอด (Remarks & Notes)</span>
+            </label>
+            <textarea id="editNotes" class="form-input" rows="2" placeholder="ระบุเหตุผล เช่น สินค้าชำรุด เปลี่ยนสถานะเป็นรอ CEO อนุมัติ, จ่ายขาดตามตกลง, หรือบันทึกข้อความสำหรับ CEO"></textarea>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+              * ข้อความนี้จะปรากฏให้ CEO เห็นอย่างชัดเจนในหน้าตรวจสอบและอนุมัติบิล
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -4281,10 +4293,10 @@
       <div class="modal-header">
         <div>
           <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
-            <span>🔄</span> <span>ย้ายบิลเป็นขายหน้าร้าน / ส่งต่อแบ่งขายให้ร้านอื่น</span>
+            <span>🔄</span> <span>ย้ายบิลเป็นสินค้ากลับร้าน / ส่งต่อแบ่งขายให้ร้านอื่น</span>
           </div>
           <div style="font-size: 12px; color: var(--text-muted);">
-            กรณีสินค้าติดปัญหาระหว่างส่ง หรือลูกค้าเดิมไม่รับ สามารถโอนขายหน้าร้านหรือแบ่งขายต่อให้ร้านอื่นได้
+            กรณีสินค้าติดปัญหาระหว่างส่ง หรือลูกค้าเดิมไม่รับ สามารถโอนเป็นสินค้ากลับร้าน หรือแบ่งขายต่อให้ร้านอื่นได้
           </div>
         </div>
         <button class="modal-close-btn" onclick="InvoiceTransferModal.close()">✕</button>
@@ -4320,10 +4332,10 @@
         <div class="form-group" style="margin-bottom: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
-              <span>🏪</span> <span>กำหนดร้านค้าที่รับซื้อต่อ / ขายหน้าร้าน (ระบุได้หลายร้าน)</span>
+              <span>🏬</span> <span>กำหนดร้านค้าที่รับซื้อต่อ / สินค้ากลับร้าน (ระบุได้หลายร้าน)</span>
             </label>
             <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11.5px; color: var(--primary); border-color: rgba(16, 185, 129, 0.4);" onclick="InvoiceTransferModal.addRow()">
-              <span>➕ เพิ่มร้านรับซื้อต่อ (+ Add Store)</span>
+              <span>➕ เพิ่มร้านรับซื้อต่อ / จุดรับสินค้า (+ Add Store)</span>
             </button>
           </div>
 
@@ -4340,7 +4352,7 @@
               <div class="font-mono font-weight: 700" style="font-size: 15px; color: var(--text-secondary);" id="transferHudOrigTotal">฿0.00</div>
             </div>
             <div style="border-left: 1px solid var(--border-subtle); border-right: 1px solid var(--border-subtle);">
-              <div style="font-size: 11px; color: var(--text-muted);">รวมยอดที่จัดสรรให้ร้านใหม่</div>
+              <div style="font-size: 11px; color: var(--text-muted);">รวมยอดที่จัดสรรให้ร้านใหม่/กลับร้าน</div>
               <div class="font-mono font-weight: 800 text-emerald" style="font-size: 15px;" id="transferHudAllocatedTotal">฿0.00</div>
             </div>
             <div>
@@ -4353,15 +4365,20 @@
 
         <!-- 4. Notes & Operational Reason -->
         <div class="form-group" style="margin-top: 14px;">
-          <label class="form-label">สาเหตุหรือหมายเหตุการส่งต่อ (เหตุผลที่ลูกค้ารายเดิมไม่รับสินค้า)</label>
-          <input type="text" class="form-input" id="transferReasonInput" placeholder="เช่น ลูกค้าปิดร้านชั่วคราว, เปลี่ยนใจไม่รับสินค้า, จัดส่งไม่ทัน จึงนำมาขายหน้าร้าน">
+          <label class="form-label" style="font-weight: 700; color: #fbbf24; display: flex; align-items: center; gap: 6px;">
+            <span>📝</span> <span>สาเหตุหรือหมายเหตุการส่งต่อ / สินค้ากลับร้าน (เหตุผลที่ลูกค้ารายเดิมไม่รับสินค้า) *</span>
+          </label>
+          <input type="text" class="form-input" id="transferReasonInput" placeholder="เช่น สินค้าชำรุด นำกลับร้าน, ลูกค้าปิดร้านชั่วคราว นำกลับร้าน, จัดส่งไม่ทัน นำกลับร้าน">
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+            * หมายเหตุนี้จะปรากฏให้ CEO ตรวจสอบและประเมินผลปิดบิล
+          </div>
         </div>
       </div>
 
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="InvoiceTransferModal.close()">ยกเลิก</button>
         <button type="button" class="btn btn-primary" onclick="InvoiceTransferModal.confirmTransfer()">
-          <span>✓ ยืนยันการส่งต่อบิล / ย้ายขายหน้าร้าน</span>
+          <span>✓ ยืนยันการส่งต่อบิล / สินค้ากลับร้าน</span>
         </button>
       </div>
     </div>
@@ -5287,6 +5304,7 @@ END $$;
               slip_data: inv.slip_data || null,
               approved_by: inv.approved_by || null,
               approved_at: inv.approved_at || null,
+              notes: inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || '',
               updated_at: nowIso
             }))).then(() => {}).catch(() => {});
           }
@@ -10051,6 +10069,12 @@ END $$;
         if (presetRef) document.getElementById('payRefInput').value = presetRef;
         document.getElementById('payDateInput').value = App.getLocalDateStr();
 
+        const noteInput = document.getElementById('payNoteInput');
+        if (noteInput) {
+          const tgtInv = this.targetInvoiceId ? App.state.invoices.find(i => i.id === this.targetInvoiceId) : null;
+          noteInput.value = tgtInv ? (tgtInv.notes || tgtInv.note || tgtInv.remarks || tgtInv.payment_note || '') : '';
+        }
+
         this.onTypeChange();
         this.onCustomerChange();
 
@@ -10313,7 +10337,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const amount = parseFloat(document.getElementById('payAmountInput').value) || 0;
         const date = document.getElementById('payDateInput').value;
         const ref = document.getElementById('payRefInput').value || '-';
-        const note = document.getElementById('payNoteInput').value;
+        const note = (document.getElementById('payNoteInput')?.value || '').trim();
 
         if (amount <= 0) {
           App.showToast('กรุณาระบุจำนวนเงินที่ถูกต้อง', 'warning');
@@ -10365,6 +10389,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           type: type,
           bank: this.passedSlipData?.bank || this.passedSlipData?.receiver_bank || (type === 'TRANSFER' ? 'โอนเงินผ่านธนาคาร' : type === 'CHEQUE' ? 'เช็คธนาคาร' : 'เงินสด'),
           ref_no: ref,
+          note: note || '',
           transfer_date: this.passedSlipData?.datetime || `${date} 14:00`,
           sender_name: this.passedSlipData?.sender_masked || this.passedSlipData?.sender_name || cust.name,
           receiver_name: recName,
@@ -10381,6 +10406,10 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           inv.paid_amount += matchAmt;
           inv.outstanding_amount -= matchAmt;
           inv.slip_data = constructedSlipData;
+          if (note) {
+            inv.notes = note;
+            inv.payment_note = note;
+          }
 
           if (inv.outstanding_amount <= 0) {
             inv.status = 'WAITING_APPROVAL';
@@ -10408,6 +10437,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           matched_amount: amount - remainingToMatch,
           unmatched_amount: remainingToMatch,
           reference_number: ref,
+          note: note || '',
+          notes: note || '',
           status: 'MATCHED',
           slip_data: constructedSlipData
         });
@@ -10421,7 +10452,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           action: 'RECORD_PAYMENT',
           table_name: 'payments',
           record_id: payNumber,
-          detail: `รับชำระ ${App.formatCurrency(amount)} (${type}) พร้อมแนบหลักฐานสลิป ส่งเข้าคิวรอ CEO ตรวจสอบ`
+          detail: `รับชำระ ${App.formatCurrency(amount)} (${type}) พร้อมแนบหลักฐานสลิป ส่งเข้าคิวรอ CEO ตรวจสอบ${note ? ' [หมายเหตุ: ' + note + ']' : ''}`
         });
 
         DataManager.save(App.state);
@@ -11386,11 +11417,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           filtered = filtered.filter(inv => {
             const cust = customers.find(c => c.id === inv.customer_id) || { name: '', code: '' };
             const q = this.searchQuery;
+            const noteStr = (inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || inv.slip_data?.note || inv.transfer_data?.reason || inv.transfer_note || '').toLowerCase();
             return (inv.iv_number && inv.iv_number.toLowerCase().includes(q)) ||
               (cust.name && cust.name.toLowerCase().includes(q)) ||
               (cust.code && cust.code.toLowerCase().includes(q)) ||
               (inv.delivery_vehicle && inv.delivery_vehicle.toLowerCase().includes(q)) ||
               (inv.transferred_from_iv && inv.transferred_from_iv.toLowerCase().includes(q)) ||
+              noteStr.includes(q) ||
               String(inv.total_amount).includes(q) ||
               String(inv.outstanding_amount).includes(q);
           });
@@ -11467,7 +11500,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
           if (inv.status === 'TRANSFERRED' || inv.transfer_data) {
             const destCount = inv.transfer_data?.destinations?.length || 1;
-            proofHtml = `<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 11px; padding: 3px 7px;">🏪 ย้ายขายหน้าร้าน (${destCount} ร้าน)</span>`;
+            proofHtml = `<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 11px; padding: 3px 7px;">🏬 สินค้ากลับร้าน (${destCount} รายการ)</span>`;
           } else if (slip) {
             const isStatement = slip.type === 'STATEMENT' || !!slip.original_file_url;
             const pageNum = slip.page_number || slip.crop_info?.pageNumber || 1;
@@ -11489,6 +11522,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             const pairedList = bundleInfo.pairedInvoices.map(p => p.iv_number).join(', ');
             proofHtml += ` <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 10px; padding: 2px 6px; margin-top: 3px; display: inline-flex; align-items: center; gap: 3px;" title="โอนแบบรวมบิลคู่กับ [${pairedList}]">⚡ รวม ${bundleInfo.pairedInvoices.length + 1} บิล</span>`;
           }
+
+          const rowNote = inv.notes || inv.note || inv.remarks || inv.admin_note || inv.payment_note || inv.slip_data?.note || inv.transfer_data?.reason || inv.transfer_note || '';
+          const noteBadgeHtml = rowNote ? `<div style="font-size: 11px; color: #fbbf24; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; padding: 2px 6px; margin-top: 3px; display: inline-flex; align-items: center; gap: 4px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="หมายเหตุ: ${App.escapeHtml(rowNote)}"><span>📝</span> <span style="overflow: hidden; text-overflow: ellipsis;">${App.escapeHtml(rowNote)}</span></div>` : '';
 
           // Single Focused CEO Inspection Action Button (Dual View: Real Transfer Proof + Sales IV)
           let actionBtns = '';
@@ -11531,6 +11567,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               <td>
                 <div style="font-weight: 600; font-size: 12.5px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="คลิกเพื่อตรวจสอบบิลนี้">${cust.name}</div>
                 <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${cust.code || '-'}</div>
+                ${noteBadgeHtml}
               </td>
               <td><span style="font-size:11.5px; color:var(--text-secondary);">🚛 ${inv.delivery_vehicle || '-'}</span></td>
               <td style="text-align: right;" class="font-mono font-weight: 600;">${App.formatCurrency(inv.total_amount)}</td>
@@ -11682,7 +11719,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           const totalBillsCount = bundleInfo.pairedInvoices.length + 1;
           const pairedHtml = bundleInfo.pairedInvoices.map(p => `
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: #93c5fd; padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.12);">
-              <span>🔗 จ่ายคู่กับบิล: <strong class="font-mono" style="color: #60a5fa; cursor: pointer; text-decoration: underline;" onclick="SlipInspectModal.open('${p.id}')" title="คลิกเพื่อสลับไปดูบิลนี้">${p.iv_number}</strong> (${p.customer_name})</span>
+              <span>🔗 จ่ายคู่กับบิล: <strong class="font-mono" style="color: #60a5fa; cursor: pointer; text-decoration: underline;" onclick="SlipInspectModal.open(\'${p.id}\')" title="คลิกเพื่อสลับไปดูบิลนี้">${p.iv_number}</strong> (${p.customer_name})</span>
               <span class="font-mono" style="font-weight: 700; color: #38bdf8;">ตัดยอด ${App.formatCurrency(p.paid_amount)}</span>
             </div>
           `).join('');
@@ -11718,7 +11755,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             <div style="background: var(--bg-surface); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <div style="font-weight: 700; color: var(--text-primary); font-size: 12.5px;">
-                  <span>🏪 ${i + 1}. ${d.customer_name}</span>
+                  <span>🏬 ${i + 1}. ${d.customer_name}</span>
                   <span class="font-mono text-muted" style="font-size: 11px;">(${d.customer_code || '-'})</span>
                 </div>
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
@@ -11736,7 +11773,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               <div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
                   <div style="font-weight: 700; font-size: 13.5px; color: #c084fc; display: flex; align-items: center; gap: 6px;">
-                    <span>🔄 2. ประวัติการย้ายขายหน้าร้าน / ส่งต่อแบ่งขาย</span>
+                    <span>🔄 2. ประวัติการส่งต่อ / สินค้ากลับร้าน</span>
                   </div>
                   <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-weight: 700;">ส่งต่อ ${tData.destinations?.length || 1} ร้าน</span>
                 </div>
@@ -11746,7 +11783,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
                     • ผู้ส่งต่อ: <strong>${tData.transferred_by || '-'}</strong> | วันที่: <strong>${tData.transferred_at || '-'}</strong>
                   </div>
                   <div style="font-size: 12px; color: #fef08a;">
-                    • เหตุผลที่ส่งต่อ: <strong>${tData.reason || 'สินค้าติดปัญหาระหว่างส่ง'}</strong>
+                    • สาเหตุ/หมายเหตุ: <strong>${tData.reason || inv.notes || 'สินค้าติดปัญหาระหว่างส่ง โอนเป็นสินค้ากลับร้าน'}</strong>
                   </div>
                 </div>
 
@@ -11801,10 +11838,10 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             '<span>📷 สแกนสลิป / Statement เพื่อตัดยอดบิลนี้</span>' +
             '</button>' +
             '<button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12.5px; padding: 7px 12px;" onclick="SlipInspectModal.recordPaymentForCurrent(\'CASH\')">' +
-            '<span>💵 บันทึกรับเงินสดหน้าร้าน (฿' + App.formatCurrency(inv.outstanding_amount) + ')</span>' +
+            '<span>💵 บันทึกรับเงินสด (฿' + App.formatCurrency(inv.outstanding_amount) + ')</span>' +
             '</button>' +
             '<button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12.5px; padding: 7px 12px; color: #c084fc; border-color: rgba(168, 85, 247, 0.4);" onclick="SlipInspectModal.close(); InvoiceTransferModal.open(\'' + inv.id + '\')">' +
-            '<span>🔄 โอนขายหน้าร้าน / แบ่งขายให้ร้านอื่น</span>' +
+            '<span>🔄 สินค้ากลับร้าน / ส่งต่อให้ร้านอื่น</span>' +
             '</button>' +
             '</div>' +
             '</div>' +
@@ -11905,6 +11942,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             }
           }
 
+          const noteTextForSlip = inv.notes || inv.note || inv.remarks || inv.admin_note || inv.payment_note || inv.slip_data?.note || '';
+
           rightColumnHtml =
             '<div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column;">' +
             '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">' +
@@ -11918,8 +11957,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
             '<div class="bank-slip-card" style="margin-top: 0; padding: 12px; flex: 1;">' +
             (slip && slip.amount && Math.abs(slip.amount - inv.total_amount) > 0.01 && inv.status !== 'PAID' ? (
-              '<div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 11.5px; color: #ef4444; font-weight: 700; display: flex; align-items: center; gap: 6px;">' +
+              '<div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; font-size: 11.5px; color: #ef4444; font-weight: 700;">' +
+              '<div style="display: flex; align-items: center; gap: 6px;">' +
               '<span>⚠️</span> <span>ยอดในสลิป (฿' + App.formatCurrency(slip.amount) + ') ไม่ตรงกับยอดรวมบิล (฿' + App.formatCurrency(inv.total_amount) + ') ผลต่าง ฿' + App.formatCurrency(Math.abs(slip.amount - inv.total_amount)) + '</span>' +
+              '</div>' +
+              (noteTextForSlip ? '<div style="font-size: 11.5px; color: #fbbf24; font-weight: 600; margin-top: 4px; border-top: 1px dashed rgba(245, 158, 11, 0.3); padding-top: 4px;">📝 หมายเหตุที่ระบุ: <em>' + App.escapeHtml(noteTextForSlip) + '</em></div>' : '') +
               '</div>'
             ) : '') +
             '<div class="slip-amount-box" style="margin-bottom: 8px; padding: 6px;">' +
@@ -11947,6 +11989,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             '<span>เลขอ้างอิง / เช็ค / Ref:</span>' +
             '<strong class="font-mono" style="color: #047857;">' + (slip?.ref_no || slip?.reference || 'TX-' + inv.iv_number) + '</strong>' +
             '</div>' +
+            (noteTextForSlip ? (
+              '<div class="slip-row" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; padding: 6px 8px; margin-top: 6px;">' +
+              '<span style="color: #fbbf24; font-weight: 700;">📝 หมายเหตุ (Note):</span>' +
+              '<strong style="color: #fef08a; font-size: 12.5px;">' + App.escapeHtml(noteTextForSlip) + '</strong>' +
+              '</div>'
+            ) : '') +
             '</div>' +
             '</div>';
         }
@@ -11956,9 +12004,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const statusBadgeHtml = inv.status === 'PAID'
           ? '<span class="badge badge-paid" style="font-size: 12px; padding: 4px 10px;">● ปิดบิลสมบูรณ์แล้ว</span>'
           : inv.status === 'TRANSFERRED'
-            ? '<span class="badge" style="background: rgba(168, 85, 247, 0.25); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 12px; padding: 4px 10px;">🔄 ส่งต่อ (รอ CEO ประเมิน)</span>'
+            ? '<span class="badge" style="background: rgba(168, 85, 247, 0.25); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 12px; padding: 4px 10px;">🔄 ส่งต่อ/สินค้ากลับร้าน (รอ CEO ประเมิน)</span>'
             : inv.status === 'WAITING_APPROVAL'
-              ? '<span class="badge badge-waiting" style="font-size: 12px; padding: 4px 10px;">⏳ ชำระครบ รอ CEO อนุมัติ</span>'
+              ? '<span class="badge badge-waiting" style="font-size: 12px; padding: 4px 10px;">⏳ ชำระครบ/รอ CEO อนุมัติ</span>'
               : inv.status === 'PARTIAL'
                 ? '<span class="badge badge-partial" style="font-size: 12px; padding: 4px 10px;">⚠️ ชำระบางส่วน</span>'
                 : '<span class="badge badge-unpaid" style="font-size: 12px; padding: 4px 10px;">🔴 ค้างชำระ</span>';
@@ -11968,7 +12016,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           bottomSummaryHtml = `
             <div style="background: linear-gradient(135deg, rgba(88, 28, 135, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%); border: 1.5px solid rgba(168, 85, 247, 0.35); border-radius: var(--radius-md); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; color: #e9d5ff; flex-wrap: wrap;">
-                <span style="font-weight: 700; color: #c084fc;">🔄 บิลนี้ปิดยอดแบบส่งต่อเรียบร้อยแล้ว</span>
+                <span style="font-weight: 700; color: #c084fc;">🔄 บิลนี้ปิดยอดแบบส่งต่อ/สินค้ากลับร้านเรียบร้อยแล้ว</span>
                 <span style="color: #cbd5e1;">สร้างบิลลูกรับช่วงต่อ ${inv.transfer_data?.destinations?.length || 1} รายการเพื่อติดตามรับเงินแล้ว รอ CEO ประเมินปิดบิล</span>
               </div>
               ${approvedTag || '<span class="badge" style="background: #a855f7; color: #fff;">รอ CEO ประเมิน</span>'}
@@ -12003,6 +12051,24 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           </div>
         ` : '';
 
+        const noteTextMain = inv.notes || inv.note || inv.remarks || inv.admin_note || inv.payment_note || inv.slip_data?.note || inv.transfer_data?.reason || inv.transfer_note || '';
+        const noteBannerHtml = noteTextMain ? `
+          <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(180, 83, 9, 0.28) 100%); border: 1.5px solid #f59e0b; border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25); display: flex; align-items: flex-start; gap: 12px;">
+            <div style="font-size: 24px; line-height: 1;">📝</div>
+            <div style="flex: 1;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap; gap: 6px;">
+                <span style="font-weight: 800; color: #fbbf24; font-size: 13.5px; display: flex; align-items: center; gap: 6px;">
+                  <span>หมายเหตุ / บันทึกกำกับจากผู้บันทึก & Admin (Remarks & Notes):</span>
+                </span>
+                <span class="badge" style="background: rgba(245, 158, 11, 0.25); color: #fef08a; border: 1px solid rgba(245, 158, 11, 0.5); font-size: 11px; font-weight: 700;">สำคัญสำหรับ CEO ตรวจสอบ</span>
+              </div>
+              <div style="font-size: 13.5px; color: #ffffff; font-weight: 600; line-height: 1.5; background: rgba(0,0,0,0.35); padding: 8px 12px; border-radius: 6px; border-left: 3.5px solid #f59e0b;">
+                "${App.escapeHtml(noteTextMain)}"
+              </div>
+            </div>
+          </div>
+        ` : '';
+
         document.getElementById('slipModalBody').innerHTML =
           '<div style="background: var(--bg-surface-elevated); padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 14px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">' +
           '<div>' +
@@ -12016,6 +12082,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           '</div>' +
           '<div>' + statusBadgeHtml + '</div>' +
           '</div>' +
+
+          noteBannerHtml +
 
           transferredBannerHtml +
 
@@ -12075,12 +12143,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           bottomSummaryHtml;
 
         const btnApprove = document.getElementById('btnModalApproveAction');
-        if (isUnpaid || (inv.status === 'PAID' && !isTransferred) || inv.status === 'PARTIAL') {
+        if (isUnpaid || (inv.status === 'PAID' && !isTransferred) || (inv.status === 'PARTIAL' && !isCeo)) {
           btnApprove.style.display = 'none';
         } else {
           btnApprove.style.display = 'inline-flex';
           btnApprove.innerHTML = isCeo 
-            ? (isTransferred ? '<span>✓ อนุมัติประเมินการส่งต่อบิล (CEO Approve)</span>' : '<span>✓ อนุมัติปิดบิลสมบูรณ์ (CEO Approve)</span>')
+            ? (isTransferred ? '<span>✓ อนุมัติประเมินสินค้ากลับร้าน/ส่งต่อ (CEO Approve)</span>' : '<span>✓ อนุมัติปิดบิลสมบูรณ์ (CEO Approve)</span>')
             : '<span>🔒 บัญชี Staff (รอ CEO อนุมัติ)</span>';
           btnApprove.disabled = !isCeo;
         }
@@ -12132,7 +12200,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           table_name: 'invoices',
           record_id: inv.iv_number,
           detail: isTransferred 
-            ? `CEO ตรวจสอบและอนุมัติประเมินการส่งต่อบิลขาย #${inv.iv_number} (ย้ายขายหน้าร้าน/ส่งต่อ ${inv.transfer_data?.destinations?.length || 1} ร้าน) สมบูรณ์`
+            ? `CEO ตรวจสอบและอนุมัติประเมินการส่งต่อ/สินค้ากลับร้าน #${inv.iv_number} (${inv.transfer_data?.destinations?.length || 1} ร้าน) สมบูรณ์`
             : `CEO ตรวจสอบหลักฐานคู่บิลขาย ${inv.iv_number} และหลักฐานการชำระเงินสมบูรณ์ (จัดเก็บหลักฐานถาวร)`
         });
 
@@ -12142,7 +12210,6 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         App.showToast(isTransferred ? `CEO อนุมัติประเมินการส่งต่อบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว` : `อนุมัติปิดบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว`, 'success');
       }
     };
-
     // 14. DASHBOARD & INVOICE CONTROLLERS
     const Dashboard = {
       currentTimeframe: 'today',
@@ -12564,17 +12631,22 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         document.getElementById('transferOrigAmount').innerText = App.formatCurrency(debt > 0 ? debt : inv.total_amount);
 
         document.getElementById('transferHudOrigTotal').innerText = App.formatCurrency(debt > 0 ? debt : inv.total_amount);
-        document.getElementById('transferReasonInput').value = '';
+        document.getElementById('transferReasonInput').value = inv.notes || inv.note || '';
 
-        // Ensure Storefront default customer exists
-        if (!App.state.customers.some(c => c.id === 'CUST-STOREFRONT' || c.name.includes('หน้าร้าน'))) {
+        // Ensure Storefront default customer exists with สินค้ากลับร้าน title
+        if (!App.state.customers.some(c => c.id === 'CUST-STOREFRONT' || c.name.includes('สินค้ากลับร้าน') || c.name.includes('หน้าร้าน'))) {
           App.state.customers.unshift({
             id: 'CUST-STOREFRONT',
             code: 'AR-FRONT',
-            name: 'ลูกค้าหน้าร้าน (Storefront / Walk-in)',
+            name: 'สินค้ากลับร้าน (Store Return / AR-FRONT)',
             phone: '02-415-8899',
-            address: 'หน้าร้านสำนักงานใหญ่ (กทม.)'
+            address: 'คลังสินค้าสำนักงานใหญ่ (กทม.)'
           });
+        } else {
+          const sfCust = App.state.customers.find(c => c.id === 'CUST-STOREFRONT');
+          if (sfCust && !sfCust.name.includes('สินค้ากลับร้าน')) {
+            sfCust.name = 'สินค้ากลับร้าน (Store Return / AR-FRONT)';
+          }
         }
 
         // Initialize with 1 default destination row for the full amount
@@ -12584,7 +12656,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             id: 'DEST-' + Date.now() + '-1',
             customerId: 'CUST-STOREFRONT',
             amount: initialAmount,
-            note: 'ย้ายขายหน้าร้าน (บิลเดิมติดปัญหาส่ง)'
+            note: 'สินค้ากลับร้าน (บิลเดิมติดปัญหาส่ง)'
           }
         ];
 
@@ -12617,7 +12689,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
       removeRow(index) {
         if (this.destinations.length <= 1) {
-          App.showToast('ต้องมีร้านค้าผู้รับซื้อต่ออย่างน้อย 1 รายการ', 'warning');
+          App.showToast('ต้องมีร้านค้าผู้รับซื้อต่อหรือจุดรับสินค้าอย่างน้อย 1 รายการ', 'warning');
           return;
         }
         this.destinations.splice(index, 1);
@@ -12653,7 +12725,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         container.innerHTML = this.destinations.map((dest, idx) => {
           const custOptions = customers.map(c => `
             <option value="${c.id}" ${c.id === dest.customerId ? 'selected' : ''}>
-              ${c.id === 'CUST-STOREFRONT' ? '🏪 ' : '🏢 '} ${c.name} (${c.code})
+              ${c.id === 'CUST-STOREFRONT' ? '🏬 ' : '🏢 '} ${c.name} (${c.code})
             </option>
           `).join('');
 
@@ -12661,7 +12733,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             <div style="background: var(--bg-surface); border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 14px; position: relative;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <span class="badge badge-doc" style="font-size: 11px; font-weight: 700;">
-                  ร้านที่ ${idx + 1}
+                  รายการที่ ${idx + 1}
                 </span>
                 ${this.destinations.length > 1 ? `
                   <button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--status-unpaid);" onclick="InvoiceTransferModal.removeRow(${idx})" title="ลบรายการนี้">
@@ -12672,7 +12744,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
               <div class="form-row" style="margin-bottom: 8px;">
                 <div class="form-group" style="flex: 2;">
-                  <label class="form-label" style="font-size: 11.5px;">เลือกลูกค้า / ร้านที่รับซื้อต่อ *</label>
+                  <label class="form-label" style="font-size: 11.5px;">เลือกลูกค้า / สินค้ากลับร้าน *</label>
                   <select class="form-select" onchange="InvoiceTransferModal.onCustomerChange(${idx}, this.value)" style="font-size: 12.5px;">
                     ${custOptions}
                   </select>
@@ -12684,7 +12756,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               </div>
 
               <div class="form-group" style="margin-bottom: 0;">
-                <input type="text" class="form-input" style="font-size: 12px; padding: 6px 10px;" value="${dest.note || ''}" placeholder="หมายเหตุ เช่น แบ่งขายงวด 1, เปลี่ยนส่งสาขา 2" oninput="InvoiceTransferModal.onNoteInput(${idx}, this.value)">
+                <input type="text" class="form-input" style="font-size: 12px; padding: 6px 10px;" value="${dest.note || ''}" placeholder="หมายเหตุ เช่น สินค้าชำรุด นำกลับร้าน, แบ่งขายงวด 1, เปลี่ยนส่งสาขา 2" oninput="InvoiceTransferModal.onNoteInput(${idx}, this.value)">
               </div>
             </div>
           `;
@@ -12752,19 +12824,19 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         if (!inv) return;
 
         if (!this.destinations || this.destinations.length === 0) {
-          App.showToast('กรุณาระบุร้านค้าผู้รับซื้อต่ออย่างน้อย 1 รายการ', 'warning');
+          App.showToast('กรุณาระบุร้านค้าผู้รับซื้อต่อหรือจุดรับสินค้าอย่างน้อย 1 รายการ', 'warning');
           return;
         }
 
         for (let i = 0; i < this.destinations.length; i++) {
           const d = this.destinations[i];
           if (!d.amount || d.amount <= 0) {
-            App.showToast(`กรุณาระบุจำนวนเงินที่ถูกต้องสำหรับร้านที่ ${i + 1}`, 'warning');
+            App.showToast(`กรุณาระบุจำนวนเงินที่ถูกต้องสำหรับรายการที่ ${i + 1}`, 'warning');
             return;
           }
         }
 
-        const reason = document.getElementById('transferReasonInput')?.value.trim() || 'สินค้าติดปัญหาระหว่างส่ง โอนขายต่อหน้าร้าน/ร้านอื่น';
+        const reason = document.getElementById('transferReasonInput')?.value.trim() || 'สินค้าติดปัญหาระหว่างส่ง โอนเป็นสินค้ากลับร้าน/ส่งต่อร้านอื่น';
         const actor = App.state.currentUserRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : (App.state.currentUserRole === 'ADMIN' ? 'ผู้ดูแลระบบ (Admin)' : 'พนักงานฝ่ายขาย');
         const nowStr = App.getLocalDateTimeStr();
         const todayDate = App.getLocalDateStr();
@@ -12773,7 +12845,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const destinationSummaries = [];
 
         this.destinations.forEach((dest, idx) => {
-          const targetCust = App.state.customers.find(c => c.id === dest.customerId) || { name: 'ลูกค้าหน้าร้าน', code: 'AR-FRONT' };
+          const targetCust = App.state.customers.find(c => c.id === dest.customerId) || { name: 'สินค้ากลับร้าน', code: 'AR-FRONT' };
           const childIvNumber = `${inv.iv_number}-R${idx + 1}`;
           const childId = 'INV-T-' + Date.now().toString().slice(-4) + '-' + (idx + 1);
 
@@ -12785,7 +12857,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             customer_name: targetCust.name,
             invoice_date: todayDate,
             due_date: todayDate,
-            delivery_vehicle: 'หน้าร้าน / เปลี่ยนสายส่ง',
+            delivery_vehicle: targetCust.id === 'CUST-STOREFRONT' ? 'สินค้ากลับร้าน / คลังสินค้า' : 'เปลี่ยนสายส่ง',
             salesperson: inv.salesperson || 'พนักงานขาย',
             total_amount: dest.amount,
             paid_amount: 0,
@@ -12794,8 +12866,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             transferred_from_iv: inv.iv_number,
             transferred_from_id: inv.id,
             transfer_note: dest.note || reason,
+            notes: dest.note || reason,
             items: (inv.items && inv.items.length > 0) ? inv.items.map(it => ({ ...it, total_price: dest.amount })) : [
-              { no: 1, name: `สินค้าแบ่งรับช่วงต่อจากบิล #${inv.iv_number}`, quantity: 1, unit: 'งวด', unit_price: dest.amount, total_price: dest.amount }
+              { no: 1, name: `สินค้าแบ่งรับช่วงต่อ/กลับร้านจากบิล #${inv.iv_number}`, quantity: 1, unit: 'งวด', unit_price: dest.amount, total_price: dest.amount }
             ],
             amount_text: '',
             source_file: inv.source_file || '',
@@ -12817,6 +12890,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         // Update Original Invoice to TRANSFERRED (Closed for re-evaluation by CEO)
         inv.status = 'TRANSFERRED';
+        inv.notes = reason;
+        inv.transfer_note = reason;
         inv.transfer_data = {
           is_transferred: true,
           transferred_at: nowStr,
@@ -12835,14 +12910,14 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           action: 'TRANSFER_INVOICE_STOREFRONT',
           table_name: 'invoices',
           record_id: inv.iv_number,
-          detail: `ย้ายบิล #${inv.iv_number} เป็นขายหน้าร้าน/ส่งต่อให้ ${destinationSummaries.length} ร้าน [${destinationSummaries.map(d => d.customer_name + ' ฿' + App.formatCurrency(d.allocated_amount)).join(', ')}] เหตุผล: ${reason}`
+          detail: `ย้ายบิล #${inv.iv_number} เป็นสินค้ากลับร้าน/ส่งต่อให้ ${destinationSummaries.length} ร้าน [${destinationSummaries.map(d => d.customer_name + ' ฿' + App.formatCurrency(d.allocated_amount)).join(', ')}] หมายเหตุ: ${reason}`
         });
 
         DataManager.save(App.state);
         this.close();
         App.refreshAllViews();
 
-        App.showToast(`🔄 โอนย้ายบิล #${inv.iv_number} เป็นขายหน้าร้าน (${destinationSummaries.length} บิลรับช่วงต่อ) สำเร็จ! ส่งให้ CEO ประเมิน`, 'success');
+        App.showToast(`🔄 โอนย้ายบิล #${inv.iv_number} เป็นสินค้ากลับร้าน/ส่งต่อ (${destinationSummaries.length} บิลรับช่วงต่อ) สำเร็จ! ส่งให้ CEO ประเมิน`, 'success');
       }
     };
 
@@ -12877,6 +12952,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         document.getElementById('editTotalAmount').value = inv.total_amount || 0;
         document.getElementById('editPaidAmount').value = inv.paid_amount || 0;
 
+        const noteInput = document.getElementById('editNotes');
+        if (noteInput) {
+          noteInput.value = inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || (inv.slip_data?.note) || (inv.transfer_data?.reason) || '';
+        }
+
         document.getElementById('editModalSubTitle').innerText = `แก้ไขบิลเลขที่ ${inv.iv_number}`;
         this.calcOutstanding();
 
@@ -12907,6 +12987,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const total = parseFloat(document.getElementById('editTotalAmount').value) || 0;
         const paid = parseFloat(document.getElementById('editPaidAmount').value) || 0;
         const outstanding = Math.max(0, total - paid);
+        const newNotes = document.getElementById('editNotes') ? document.getElementById('editNotes').value.trim() : '';
 
         inv.iv_number = document.getElementById('editIvNumber').value.trim();
         inv.doc_type = document.getElementById('editDocType').value.trim() || 'ใบส่งของชั่วคราว';
@@ -12918,6 +12999,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         inv.total_amount = total;
         inv.paid_amount = paid;
         inv.outstanding_amount = outstanding;
+        inv.notes = newNotes;
+        inv.admin_note = newNotes;
+        if (inv.slip_data && newNotes) {
+          inv.slip_data.note = newNotes;
+        }
 
         // Audit Log
         App.state.audit_logs.unshift({
@@ -12927,7 +13013,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           action: 'EDIT_INVOICE',
           table_name: 'invoices',
           record_id: inv.iv_number,
-          detail: `Admin แก้ไขข้อมูลบิล ${oldIvNumber} -> ยอดรวม ${App.formatCurrency(total)}, ชำระ ${App.formatCurrency(paid)}, สถานะ ${inv.status}`
+          detail: `Admin แก้ไขข้อมูลบิล ${oldIvNumber} -> ยอดรวม ${App.formatCurrency(total)}, ชำระ ${App.formatCurrency(paid)}, สถานะ ${inv.status}${newNotes ? ' [หมายเหตุ: ' + newNotes + ']' : ''}`
         });
 
         DataManager.save(App.state);
@@ -12963,11 +13049,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         const filtered = invoices.filter(inv => {
           const cust = customers.find(c => c.id === inv.customer_id) || { name: '', code: '' };
+          const noteStr = (inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || inv.slip_data?.note || inv.transfer_data?.reason || '').toLowerCase();
           const matchesQuery = !query ||
             (inv.iv_number && String(inv.iv_number).toLowerCase().includes(query)) ||
             (cust.name && String(cust.name).toLowerCase().includes(query)) ||
             (cust.code && String(cust.code).toLowerCase().includes(query)) ||
-            (inv.delivery_vehicle && String(inv.delivery_vehicle).toLowerCase().includes(query));
+            (inv.delivery_vehicle && String(inv.delivery_vehicle).toLowerCase().includes(query)) ||
+            noteStr.includes(query);
 
           const matchesStatus = this.statusFilter === 'ALL' || inv.status === this.statusFilter;
           return matchesQuery && matchesStatus;
@@ -12991,6 +13079,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         tbody.innerHTML = invoices.map(inv => {
           const cust = customers.find(c => c.id === inv.customer_id) || { name: '-', code: '-' };
           const hasSlip = !!inv.slip_data;
+          const rowNote = inv.notes || inv.note || inv.remarks || inv.admin_note || inv.payment_note || inv.slip_data?.note || inv.transfer_data?.reason || inv.transfer_note || '';
+          const noteBadgeHtml = rowNote ? `<div style="font-size: 11px; color: #fbbf24; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 4px; padding: 2px 6px; margin-top: 3px; display: inline-flex; align-items: center; gap: 4px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="หมายเหตุ: ${App.escapeHtml(rowNote)}"><span>📝</span> <span style="overflow: hidden; text-overflow: ellipsis;">${App.escapeHtml(rowNote)}</span></div>` : '';
 
           return `
             <tr>
@@ -13008,7 +13098,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
                   ${cust.phone && cust.phone !== '-' ? `<span>📞 ${cust.phone}</span>` : ''}
                   ${inv.items?.length ? `<span>📦 ${inv.items.length} รายการ</span>` : ''}
                 </div>
-                ${inv.transfer_data ? `<div style="font-size: 11px; color: #c084fc; font-weight: 600; margin-top: 4px; background: rgba(168, 85, 247, 0.1); padding: 3px 8px; border-radius: 4px; border: 1px dashed rgba(168, 85, 247, 0.3);">🔄 โอนขายหน้าร้าน/ส่งต่อให้: ${(inv.transfer_data.destinations || []).map(d => `${d.customer_name} (฿${App.formatCurrency(d.allocated_amount)})`).join(', ')}</div>` : ''}
+                ${noteBadgeHtml}
+                ${inv.transfer_data ? `<div style="font-size: 11px; color: #c084fc; font-weight: 600; margin-top: 4px; background: rgba(168, 85, 247, 0.1); padding: 3px 8px; border-radius: 4px; border: 1px dashed rgba(168, 85, 247, 0.3);">🔄 โอนสินค้ากลับร้าน/ส่งต่อให้: ${(inv.transfer_data.destinations || []).map(d => `${d.customer_name} (฿${App.formatCurrency(d.allocated_amount)})`).join(', ')}</div>` : ''}
               </td>
               <td><span style="font-size:12px; color:var(--text-secondary); font-weight: 500;">🚛 ${inv.delivery_vehicle || '-'}</span></td>
               <td style="text-align: right;" class="font-mono font-weight: 700">
@@ -13027,8 +13118,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
                     ${inv.status === 'WAITING_APPROVAL' || inv.status === 'TRANSFERRED' ? '🔍 ตรวจสอบ' : hasSlip ? '🖼️ ดูสลิป' : 'รายละเอียด'}
                   </button>
                   ${(inv.status === 'UNPAID' || inv.status === 'PARTIAL') ? `
-                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px; color: #c084fc; border-color: rgba(168, 85, 247, 0.4);" onclick="InvoiceTransferModal.open('${inv.id}')" title="ย้ายบิลเป็นขายหน้าร้าน / ส่งต่อให้ร้านอื่น">
-                      🔄 โอนขายหน้าร้าน
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11.5px; color: #c084fc; border-color: rgba(168, 85, 247, 0.4);" onclick="InvoiceTransferModal.open('${inv.id}')" title="ย้ายบิลเป็นสินค้ากลับร้าน / ส่งต่อให้ร้านอื่น">
+                      🔄 สินค้ากลับร้าน
                     </button>
                   ` : ''}
                   ${isAdmin ? `
@@ -13092,12 +13183,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           PARTIAL: '<span class="badge badge-partial">● ชำระบางส่วน</span>',
           UNPAID: '<span class="badge badge-unpaid">● ยังไม่ชำระ</span>',
           OVERPAID: '<span class="badge badge-overpaid">● ชำระเกิน</span>',
-          TRANSFERRED: '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">🔄 ส่งต่อ (รอ CEO ประเมิน)</span>'
+          TRANSFERRED: '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">🔄 สินค้ากลับร้าน/ส่งต่อ (รอ CEO)</span>'
         };
         return map[status] || `<span class="badge">${status}</span>`;
       }
     };
-
     const PaymentView = {
       render() {
         const tbody = document.getElementById('paymentsTableBody');
