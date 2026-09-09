@@ -2201,6 +2201,20 @@
       </div>
 
       <div class="header-right">
+        <!-- Cloud Pull & Save Action Controls -->
+        <div class="header-cloud-actions" style="display: flex; align-items: center; gap: 8px;">
+          <!-- 1. Pull Latest from Cloud (เริ่มใช้งานกดดึงข้อมูล) -->
+          <button type="button" class="btn btn-secondary" id="btnHeaderPullCloud" onclick="if(typeof SupabaseSync !== 'undefined') SupabaseSync.pullFreshData(true);" title="เริ่มใช้งาน: ดึงข้อมูลล่าสุดจาก Supabase Cloud" style="padding: 5px 12px; font-size: 11.5px; display: flex; align-items: center; gap: 5px; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+            <span style="font-size: 13px;">📥</span> <span>ดึงข้อมูลล่าสุด</span>
+          </button>
+
+          <!-- 2. Save to Cloud (หลังใช้งานเสร็จกดเซฟ) -->
+          <button type="button" class="btn btn-primary" id="btnHeaderPushCloud" onclick="if(typeof SupabaseSync !== 'undefined') SupabaseSync.pushAllDataSecure(false);" title="หลังทำงานเสร็จ: บันทึกข้อมูลขึ้น Supabase Cloud" style="padding: 5px 14px; font-size: 11.5px; display: flex; align-items: center; gap: 6px; border-radius: 20px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, #059669 0%, #10b981 100%); border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25); transition: all 0.2s ease;">
+            <span style="font-size: 13px;">💾</span> <span id="btnHeaderPushText">บันทึกขึ้น Cloud</span>
+            <span id="pendingChangesBadge" style="display: none; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; border-radius: 10px; padding: 1px 6px; margin-left: 2px;">0</span>
+          </button>
+        </div>
+
         <!-- Supabase Cloud Sync Status Badge -->
         <div id="cloudSyncStatusBadge" class="cloud-sync-badge" onclick="if(typeof SupabaseSync !== 'undefined' && SupabaseSync.hasMissingTables){SupabaseSync.showSqlSchemaModal();}else{Router.navigate('settings');}" title="สถานะการเชื่อมต่อ Supabase Cloud Database (คลิกเพื่อตั้งค่า / ตรวจสอบ)" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 600; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; transition: all 0.2s ease;">
           <span class="sync-dot" id="cloudSyncDot" style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
@@ -4546,6 +4560,45 @@
       }
     };
 
+    // 0.9 UNIVERSAL HIGH-EFFICIENCY IMAGE COMPRESSOR
+    const ImageCompressor = {
+      async compress(dataUrl, maxDim = 1000, quality = 0.75) {
+        return new Promise((resolve) => {
+          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+            return resolve(dataUrl);
+          }
+          const img = new Image();
+          img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            try {
+              const webp = canvas.toDataURL('image/webp', quality);
+              if (webp && webp.startsWith('data:image/webp') && webp.length > 50) {
+                return resolve(webp);
+              }
+            } catch (_) {}
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = () => resolve(dataUrl);
+          img.src = dataUrl;
+        });
+      }
+    };
+
     // 1. DATA MANAGER & PRODUCTION CLEAN STATE
     const DataManager = {
       STORAGE_KEY: 'khuckngurn_flow_v13_prod',
@@ -4560,6 +4613,31 @@
         'khuckngurn_flow_prod',
         'khuckngurn_flow_data'
       ],
+
+      // Pending changes tracker (ผู้ใช้ทำงานเสร็จแล้วค่อยกดเซฟ)
+      hasPendingChanges: false,
+      pendingChangeCount: 0,
+
+      // High-precision financial rounding (2 decimal places)
+      round2(num) {
+        return Math.round(((parseFloat(num) || 0) + Number.EPSILON) * 100) / 100;
+      },
+
+      markChanged(count = 1) {
+        this.hasPendingChanges = true;
+        this.pendingChangeCount = (this.pendingChangeCount || 0) + count;
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.updateHeaderSaveButton) {
+          SupabaseSync.updateHeaderSaveButton();
+        }
+      },
+
+      resetChanged() {
+        this.hasPendingChanges = false;
+        this.pendingChangeCount = 0;
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.updateHeaderSaveButton) {
+          SupabaseSync.updateHeaderSaveButton();
+        }
+      },
 
       getMasterSeedData() {
         const seedCustomers = [
@@ -4630,7 +4708,8 @@
           invoices: seedInvoices,
           payments: [],
           payment_allocations: [],
-          audit_logs: []
+          audit_logs: [],
+          updated_at: new Date().toISOString()
         };
       },
 
@@ -4663,9 +4742,10 @@
         const custByName = new Map(state.customers.map(c => [c.name.trim().toLowerCase(), c]));
 
         state.invoices.forEach(inv => {
-          inv.total_amount = Number(inv.total_amount || 0);
-          inv.paid_amount = Number(inv.paid_amount || 0);
-          inv.outstanding_amount = Number(inv.outstanding_amount !== undefined ? inv.outstanding_amount : (inv.total_amount - inv.paid_amount));
+          inv.total_amount = this.round2(inv.total_amount || 0);
+          inv.paid_amount = this.round2(inv.paid_amount || 0);
+          inv.outstanding_amount = this.round2(Math.max(0, inv.total_amount - inv.paid_amount));
+          if (!inv.updated_at) inv.updated_at = new Date().toISOString();
 
           let cust = custMap.get(inv.customer_id) || custByName.get((inv.customer_name || '').trim().toLowerCase());
           if (!cust && inv.customer_name) {
@@ -4677,7 +4757,8 @@
               code: newCode,
               name: inv.customer_name,
               phone: inv.customer_phone || '-',
-              address: inv.customer_address || '-'
+              address: inv.customer_address || '-',
+              updated_at: new Date().toISOString()
             };
             state.customers.push(cust);
             custMap.set(newId, cust);
@@ -4689,10 +4770,23 @@
           }
         });
 
+        state.payments.forEach(p => {
+          p.amount = this.round2(p.amount || 0);
+          p.matched_amount = this.round2(p.matched_amount || 0);
+          p.unmatched_amount = this.round2(Math.max(0, p.amount - p.matched_amount));
+          if (!p.updated_at) p.updated_at = new Date().toISOString();
+        });
+
+        state.payment_allocations.forEach(a => {
+          a.allocated_amount = this.round2(a.allocated_amount || 0);
+          if (!a.updated_at) a.updated_at = new Date().toISOString();
+        });
+
         // Ensure backward compatibility defaults
         if (!state.adminPin) state.adminPin = '0318';
         if (!state.ceoPin) state.ceoPin = '9999';
         if (!state.staffPin) state.staffPin = '1234';
+        if (!state.updated_at) state.updated_at = new Date().toISOString();
 
         return state;
       },
@@ -4770,7 +4864,7 @@
             if (Array.isArray(idbState.invoices)) {
               idbState.invoices.forEach(idbInv => {
                 const cur = App.state.invoices.find(i => i.id === idbInv.id);
-                if (cur && idbInv.slip_data?.original_file_url && !cur.slip_data?.original_file_url) {
+                if (cur && idbInv.slip_data?.proof_data_url && !cur.slip_data?.proof_data_url) {
                   cur.slip_data = idbInv.slip_data;
                   updated = true;
                 }
@@ -4789,20 +4883,21 @@
       sanitizeForLocalStorage(data) {
         try {
           const clone = JSON.parse(JSON.stringify(data));
+          // DO NOT strip proof_data_url! Keep proof images completely safe
           if (Array.isArray(clone.invoices)) {
             clone.invoices.forEach(inv => {
               if (inv.slip_data) {
-                if (inv.slip_data.original_file_url && inv.slip_data.original_file_url.length > 25000) {
-                  inv.slip_data.original_file_url = null; // Preserved in IndexedDB
-                }
-                if (inv.slip_data.proof_data_url && inv.slip_data.proof_data_url.length > 80000) {
-                  inv.slip_data.proof_data_url = null; // Preserved in IndexedDB
-                }
-                if (inv.slip_data.highlighted_page_url && inv.slip_data.highlighted_page_url.length > 25000) {
-                  inv.slip_data.highlighted_page_url = null;
-                }
+                // If PDF had all_pages, avoid storing 20 duplicate pages in localStorage (IDB retains it)
                 if (inv.slip_data.all_pages) {
-                  inv.slip_data.all_pages = null;
+                  const pageKeys = Object.keys(inv.slip_data.all_pages);
+                  if (pageKeys.length > 0) {
+                    inv.slip_data.has_pdf_pages = pageKeys.length;
+                    inv.slip_data.all_pages = null;
+                  }
+                }
+                // Only trim if gigantic uncompressed file > 1MB
+                if (inv.slip_data.original_file_url && inv.slip_data.original_file_url.length > 1000000) {
+                  inv.slip_data.original_file_url = null;
                 }
               }
             });
@@ -4810,17 +4905,15 @@
           if (Array.isArray(clone.payments)) {
             clone.payments.forEach(p => {
               if (p.slip_data) {
-                if (p.slip_data.original_file_url && p.slip_data.original_file_url.length > 25000) {
-                  p.slip_data.original_file_url = null; // Preserved in IndexedDB
-                }
-                if (p.slip_data.proof_data_url && p.slip_data.proof_data_url.length > 80000) {
-                  p.slip_data.proof_data_url = null; // Preserved in IndexedDB
-                }
-                if (p.slip_data.highlighted_page_url && p.slip_data.highlighted_page_url.length > 25000) {
-                  p.slip_data.highlighted_page_url = null;
-                }
                 if (p.slip_data.all_pages) {
-                  p.slip_data.all_pages = null;
+                  const pageKeys = Object.keys(p.slip_data.all_pages);
+                  if (pageKeys.length > 0) {
+                    p.slip_data.has_pdf_pages = pageKeys.length;
+                    p.slip_data.all_pages = null;
+                  }
+                }
+                if (p.slip_data.original_file_url && p.slip_data.original_file_url.length > 1000000) {
+                  p.slip_data.original_file_url = null;
                 }
               }
             });
@@ -4847,22 +4940,23 @@
           try {
             localStorage.setItem(this.STORAGE_KEY, jsonStr);
           } catch (fallbackErr) {
-            console.warn('LocalStorage write fallback error:', fallbackErr);
+            console.warn('LocalStorage write fallback note:', fallbackErr);
           }
         }
       },
 
-      save(data) {
+      // Standard user save: keeps local state safe immediately, marks pending changes for Cloud
+      save(data, markDirty = true) {
         if (!data) return;
         this.saveLocalOnly(data);
-        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
-          SupabaseSync.debouncedPush(data);
+        if (markDirty) {
+          this.markChanged(1);
         }
       },
 
       resetToDemoData() {
         const initial = this.getMasterSeedData();
-        this.save(initial);
+        this.save(initial, false);
         App.state = initial;
         App.refreshAllViews();
         App.showToast('รีเซ็ตฐานข้อมูลเป็นชุดเริ่มต้นเรียบร้อยแล้ว', 'success');
@@ -5110,8 +5204,12 @@ END $$;
             console.warn('Browser offline');
             this.updateStatusBadge('offline', 'ออฟไลน์ (ไม่มีเน็ต)');
           });
-          window.addEventListener('beforeunload', () => {
-            this.flushPendingPush();
+          window.addEventListener('beforeunload', (e) => {
+            if (typeof DataManager !== 'undefined' && DataManager.hasPendingChanges && DataManager.pendingChangeCount > 0) {
+              e.preventDefault();
+              e.returnValue = 'คุณมีข้อมูลที่ยังไม่ได้บันทึกขึ้น Cloud (' + DataManager.pendingChangeCount + ' รายการ) กรุณากด "💾 บันทึกขึ้น Cloud" เพื่อป้องกันข้อมูลสูญหาย';
+              return e.returnValue;
+            }
           });
           this.listenersAttached = true;
         }
@@ -5334,18 +5432,11 @@ END $$;
           this.isConnected = true;
           this.hasMissingTables = false;
           this.updateStatusBadge('connected', 'Supabase Realtime (Online)');
-          if (showToast) App.showToast('🟢 เชื่อมต่อ Supabase Cloud สำเร็จ (Realtime Sync พร้อมใช้งาน)', 'success');
+          this.updateHeaderSaveButton();
 
-          // Pull fresh cloud data & setup realtime subscription
-          await this.pullFreshData(false);
+          // Pull fresh cloud data automatically on startup! (เริ่มใช้งานดึงข้อมูลล่าสุด)
+          await this.pullFreshData(true);
           this.subscribeRealtime();
-
-          // Flush any offline pending push
-          if (this.pendingPushState) {
-            const pending = this.pendingPushState;
-            this.pendingPushState = null;
-            this.debouncedPush(pending, true);
-          }
         } catch (e) {
           console.error('Supabase connection failed:', e);
           this.isConnected = false;
@@ -5375,21 +5466,45 @@ END $$;
         await this.testAndConnect(true);
       },
 
+      updateHeaderSaveButton() {
+        const btn = document.getElementById('btnHeaderPushCloud');
+        const badge = document.getElementById('pendingChangesBadge');
+        const txt = document.getElementById('btnHeaderPushText');
+        if (!btn) return;
+
+        const count = DataManager.pendingChangeCount || 0;
+        const hasPending = DataManager.hasPendingChanges && count > 0;
+
+        if (hasPending) {
+          if (badge) {
+            badge.style.display = 'inline-block';
+            badge.innerText = count > 99 ? '99+' : String(count);
+          }
+          if (txt) txt.innerText = 'บันทึกขึ้น Cloud';
+          btn.style.background = 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)';
+          btn.style.borderColor = '#fbbf24';
+          btn.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.45)';
+          btn.title = `มี ${count} รายการรอการบันทึกขึ้น Cloud (คลิกเพื่อบันทึก)`;
+        } else {
+          if (badge) badge.style.display = 'none';
+          if (txt) txt.innerText = 'บันทึกขึ้น Cloud';
+          btn.style.background = 'linear-gradient(135deg, #059669 0%, #10b981 100%)';
+          btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+          btn.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.25)';
+          btn.title = 'หลังทำงานเสร็จ: บันทึกข้อมูลขึ้น Supabase Cloud';
+        }
+      },
+
       sanitizeForCloud(state) {
         if (!state) return {};
         try {
           const clone = JSON.parse(JSON.stringify(state));
           
-          // Strip heavy raw base64 data URLs in invoices to prevent HTTP 413 Payload Too Large
+          // PRESERVE real proof images (Statement crop, slip photos, cheque)!
+          // Only trim excessive multi-page PDF image arrays (all_pages) to keep snapshot clean
           if (Array.isArray(clone.invoices)) {
             clone.invoices.forEach(inv => {
               if (inv.slip_data) {
-                if (inv.slip_data.original_file_url && inv.slip_data.original_file_url.length > 20000) {
-                  inv.slip_data.original_file_url = null; // Lightweight snapshot
-                }
-                if (inv.slip_data.highlighted_page_url && inv.slip_data.highlighted_page_url.length > 20000) {
-                  inv.slip_data.highlighted_page_url = null;
-                }
                 if (inv.slip_data.all_pages) {
                   const pageKeys = Object.keys(inv.slip_data.all_pages);
                   if (pageKeys.length > 0) {
@@ -5404,14 +5519,12 @@ END $$;
           if (Array.isArray(clone.payments)) {
             clone.payments.forEach(p => {
               if (p.slip_data) {
-                if (p.slip_data.original_file_url && p.slip_data.original_file_url.length > 20000) {
-                  p.slip_data.original_file_url = null;
-                }
-                if (p.slip_data.highlighted_page_url && p.slip_data.highlighted_page_url.length > 20000) {
-                  p.slip_data.highlighted_page_url = null;
-                }
                 if (p.slip_data.all_pages) {
-                  p.slip_data.all_pages = null;
+                  const pageKeys = Object.keys(p.slip_data.all_pages);
+                  if (pageKeys.length > 0) {
+                    p.slip_data.has_pdf_pages = pageKeys.length;
+                    p.slip_data.all_pages = null;
+                  }
                 }
               }
             });
@@ -5424,34 +5537,225 @@ END $$;
         }
       },
 
-      async pushAllData(state, silent = true) {
-        if (!this.client || !this.isConnected || !state) {
-          if (state && !this.isConnected) {
-            this.pendingPushState = state;
+      async pullFreshData(showToast = false) {
+        if (!this.client || !this.isConnected) return;
+        this.updateStatusBadge('syncing', 'กำลังดึงข้อมูลล่าสุดจาก Cloud...');
+        try {
+          const { data, error } = await this.client.from('app_state_backup').select('state_data, updated_at').eq('id', 'main_state').single();
+          if (data && data.state_data) {
+            const cloudState = data.state_data;
+            const hasCloudInvoices = Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0;
+
+            if (hasCloudInvoices) {
+              if (!DataManager.hasPendingChanges) {
+                // User has no unsaved local changes: adopt Cloud as Single Source of Truth!
+                // But preserve any local slip images from IDB if Cloud was missing them
+                const localInvMap = new Map((App.state.invoices || []).map(i => [i.id || i.iv_number, i]));
+                cloudState.invoices.forEach(cinv => {
+                  const local = localInvMap.get(cinv.id || cinv.iv_number);
+                  if (local && local.slip_data?.proof_data_url && !cinv.slip_data?.proof_data_url) {
+                    if (!cinv.slip_data) cinv.slip_data = {};
+                    cinv.slip_data.proof_data_url = local.slip_data.proof_data_url;
+                  }
+                  if (local && (local.slip_data?.highlighted_page_url || local.slip_data?.original_file_url) && !cinv.slip_data?.highlighted_page_url) {
+                    if (!cinv.slip_data) cinv.slip_data = {};
+                    cinv.slip_data.highlighted_page_url = local.slip_data.highlighted_page_url || local.slip_data.original_file_url;
+                  }
+                });
+
+                const localPayMap = new Map((App.state.payments || []).map(p => [p.id || p.payment_number, p]));
+                (cloudState.payments || []).forEach(cpay => {
+                  const local = localPayMap.get(cpay.id || cpay.payment_number);
+                  if (local && local.slip_data?.proof_data_url && !cpay.slip_data?.proof_data_url) {
+                    if (!cpay.slip_data) cpay.slip_data = {};
+                    cpay.slip_data.proof_data_url = local.slip_data.proof_data_url;
+                  }
+                  if (local && (local.slip_data?.highlighted_page_url || local.slip_data?.original_file_url) && !cpay.slip_data?.highlighted_page_url) {
+                    if (!cpay.slip_data) cpay.slip_data = {};
+                    cpay.slip_data.highlighted_page_url = local.slip_data.highlighted_page_url || local.slip_data.original_file_url;
+                  }
+                });
+
+                App.state.invoices = cloudState.invoices;
+                if (Array.isArray(cloudState.customers)) App.state.customers = cloudState.customers;
+                if (Array.isArray(cloudState.payments)) App.state.payments = cloudState.payments;
+                if (Array.isArray(cloudState.payment_allocations)) App.state.payment_allocations = cloudState.payment_allocations;
+                if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
+                  App.state.companyBankAccounts = cloudState.companyBankAccounts;
+                }
+                if (Array.isArray(cloudState.audit_logs)) App.state.audit_logs = cloudState.audit_logs;
+                if (cloudState.adminPin) App.state.adminPin = cloudState.adminPin;
+                if (cloudState.ceoPin) App.state.ceoPin = cloudState.ceoPin;
+                if (cloudState.staffPin) App.state.staffPin = cloudState.staffPin;
+                if (Array.isArray(cloudState.salespersons)) App.state.salespersons = cloudState.salespersons;
+                
+                DataManager.resetChanged();
+              } else {
+                // User has pending local edits: Anti-Rollback Smart Merge using timestamps!
+                // 1. INVOICES
+                const localInvMap = new Map((App.state.invoices || []).map(i => [i.id || i.iv_number, i]));
+                const mergedInvoices = [];
+
+                cloudState.invoices.forEach(cinv => {
+                  const key = cinv.id || cinv.iv_number;
+                  if (!localInvMap.has(key)) {
+                    mergedInvoices.push(cinv);
+                  } else {
+                    const localInv = localInvMap.get(key);
+                    const cloudTime = new Date(cinv.updated_at || '1970-01-01').getTime();
+                    const localTime = new Date(localInv.updated_at || '1970-01-01').getTime();
+
+                    if (cloudTime > localTime) {
+                      // Cloud is newer: adopt cloud, but preserve local slip proof if cloud is missing it
+                      if (localInv.slip_data?.proof_data_url && !cinv.slip_data?.proof_data_url) {
+                        if (!cinv.slip_data) cinv.slip_data = {};
+                        cinv.slip_data.proof_data_url = localInv.slip_data.proof_data_url;
+                      }
+                      mergedInvoices.push(cinv);
+                    } else {
+                      // Local is newer: keep local edits!
+                      mergedInvoices.push(localInv);
+                    }
+                    localInvMap.delete(key);
+                  }
+                });
+
+                // Keep local invoices that aren't on cloud yet
+                localInvMap.forEach(localOnly => mergedInvoices.unshift(localOnly));
+                App.state.invoices = mergedInvoices;
+
+                // 2. PAYMENTS (Never lose any payment!)
+                const localPayMap = new Map((App.state.payments || []).map(p => [p.id || p.payment_number, p]));
+                const mergedPayments = [];
+
+                (cloudState.payments || []).forEach(cpay => {
+                  const key = cpay.id || cpay.payment_number;
+                  if (!localPayMap.has(key)) {
+                    mergedPayments.push(cpay);
+                  } else {
+                    const localPay = localPayMap.get(key);
+                    const cloudTime = new Date(cpay.updated_at || '1970-01-01').getTime();
+                    const localTime = new Date(localPay.updated_at || '1970-01-01').getTime();
+
+                    if (cloudTime > localTime) {
+                      if (localPay.slip_data?.proof_data_url && !cpay.slip_data?.proof_data_url) {
+                        if (!cpay.slip_data) cpay.slip_data = {};
+                        cpay.slip_data.proof_data_url = localPay.slip_data.proof_data_url;
+                      }
+                      mergedPayments.push(cpay);
+                    } else {
+                      mergedPayments.push(localPay);
+                    }
+                    localPayMap.delete(key);
+                  }
+                });
+
+                localPayMap.forEach(localOnly => mergedPayments.unshift(localOnly));
+                App.state.payments = mergedPayments;
+
+                // 3. CUSTOMERS
+                const localCustMap = new Map((App.state.customers || []).map(c => [c.id, c]));
+                (cloudState.customers || []).forEach(ccust => {
+                  if (!localCustMap.has(ccust.id)) {
+                    App.state.customers.push(ccust);
+                  } else {
+                    const localC = localCustMap.get(ccust.id);
+                    const cloudTime = new Date(ccust.updated_at || '1970-01-01').getTime();
+                    const localTime = new Date(localC.updated_at || '1970-01-01').getTime();
+                    if (cloudTime > localTime) Object.assign(localC, ccust);
+                  }
+                });
+
+                // 4. ALLOCATIONS
+                const localAllocMap = new Set((App.state.payment_allocations || []).map(a => a.id));
+                (cloudState.payment_allocations || []).forEach(ca => {
+                  if (!localAllocMap.has(ca.id)) App.state.payment_allocations.push(ca);
+                });
+              }
+
+              DataManager.ensureDataIntegrity(App.state);
+              DataManager.saveLocalOnly(App.state);
+              App.refreshAllViews();
+
+              if (showToast) {
+                App.showToast(`📥 ดึงข้อมูลล่าสุดจาก Cloud สำเร็จ (${App.state.invoices?.length || 0} บิล, ${App.state.payments?.length || 0} ยอดรับชำระ)`, 'success');
+              }
+            } else if (showToast) {
+              App.showToast('Cloud ยังไม่มีข้อมูล ระบบใช้ข้อมูลในเครื่อง', 'info');
+            }
           }
+          this.lastSyncTime = new Date();
+          this.updateStatusBadge('connected', `Cloud ล่าสุด (${this.formatTime(this.lastSyncTime)})`);
+          this.updateHeaderSaveButton();
+        } catch (err) {
+          console.warn('Pull fresh data note:', err);
+          this.updateStatusBadge('connected');
+        }
+      },
+
+      async pushAllDataSecure(silent = false) {
+        if (this.hasMissingTables) {
+          this.showSqlSchemaModal();
+          return;
+        }
+
+        if (!this.client || !this.isConnected) {
+          if (!silent) App.showToast('ยังไม่ได้เชื่อมต่อ Cloud หรือระบบออฟไลน์ โปรดตรวจสอบการเชื่อมต่อ', 'warning');
           return;
         }
 
         this.isSyncing = true;
-        this.updateStatusBadge('syncing', 'กำลังอัปโหลดขึ้น Cloud...');
+        this.updateStatusBadge('syncing', 'กำลังบันทึกข้อมูลขึ้น Cloud...');
+
+        const saveBtn = document.getElementById('btnHeaderPushCloud');
+        if (saveBtn) saveBtn.style.opacity = '0.7';
 
         try {
-          const cleanState = this.sanitizeForCloud(state);
-          const nowIso = new Date().toISOString();
+          // 1. Pre-save Conflict Check: fetch latest remote timestamp to prevent rollback
+          const { data: remoteSnap } = await this.client.from('app_state_backup').select('state_data, updated_at').eq('id', 'main_state').single();
+          if (remoteSnap && remoteSnap.state_data) {
+            const remoteState = remoteSnap.state_data;
+            const remoteTime = new Date(remoteSnap.updated_at || remoteState.updated_at || '1970-01-01').getTime();
+            const ourLastPull = this.lastSyncTime ? new Date(this.lastSyncTime).getTime() : 0;
 
-          // Safety guard: Check if cloud already has data before overwriting with empty
-          if ((!cleanState.invoices || cleanState.invoices.length === 0) && (!cleanState.customers || cleanState.customers.length === 0)) {
-            try {
-              const { data: existingSnap } = await this.client.from('app_state_backup').select('state_data').eq('id', 'main_state').single();
-              if (existingSnap?.state_data?.invoices?.length > 0 || existingSnap?.state_data?.customers?.length > 0) {
-                console.warn('Cloud protection: Aborted pushing empty state over populated Cloud state. Pulling from Cloud instead.');
-                await this.pullFreshData(false);
-                this.isSyncing = false;
-                return;
-              }
-            } catch (_) {}
+            // If remote was updated by another device since our last pull: merge remote items first!
+            if (remoteTime > ourLastPull && Array.isArray(remoteState.invoices)) {
+              console.log('⚡ Detected remote cloud updates prior to push. Merging to prevent rollback...');
+              const localInvMap = new Map((App.state.invoices || []).map(i => [i.id || i.iv_number, i]));
+              
+              remoteState.invoices.forEach(rinv => {
+                const key = rinv.id || rinv.iv_number;
+                if (!localInvMap.has(key)) {
+                  App.state.invoices.push(rinv);
+                } else {
+                  const local = localInvMap.get(key);
+                  const rTime = new Date(rinv.updated_at || '1970-01-01').getTime();
+                  const lTime = new Date(local.updated_at || '1970-01-01').getTime();
+                  if (rTime > lTime) {
+                    Object.assign(local, rinv);
+                  }
+                }
+              });
+
+              const localPayMap = new Map((App.state.payments || []).map(p => [p.id || p.payment_number, p]));
+              (remoteState.payments || []).forEach(rpay => {
+                const key = rpay.id || rpay.payment_number;
+                if (!localPayMap.has(key)) {
+                  App.state.payments.push(rpay);
+                }
+              });
+            }
           }
 
+          // 2. Enforce 100% financial precision & timestamps
+          const nowIso = new Date().toISOString();
+          App.state.updated_at = nowIso;
+          DataManager.ensureDataIntegrity(App.state);
+          DataManager.saveLocalOnly(App.state);
+
+          const cleanState = this.sanitizeForCloud(App.state);
+
+          // 3. Push Snapshot (Single Source of Truth)
           const snapshot = {
             id: 'main_state',
             state_data: {
@@ -5470,14 +5774,13 @@ END $$;
             updated_at: nowIso
           };
 
-          // 1. Push state snapshot (Single Source of Truth for Realtime Multi-Device)
           const { error: snapErr } = await this.client.from('app_state_backup').upsert(snapshot);
           if (snapErr) {
             console.error('Error saving app_state_backup:', snapErr);
             throw snapErr;
           }
 
-          // 2. Safely push structured tables (in background without blocking)
+          // 4. Batch push structured tables with full slip_data & timestamps
           if (cleanState.customers && cleanState.customers.length > 0) {
             this.client.from('customers').upsert(cleanState.customers.map(c => ({
               id: c.id,
@@ -5485,7 +5788,7 @@ END $$;
               name: c.name,
               phone: c.phone || '',
               address: c.address || '',
-              updated_at: nowIso
+              updated_at: c.updated_at || nowIso
             }))).then(() => {}).catch(() => {});
           }
 
@@ -5512,7 +5815,7 @@ END $$;
               approved_by: inv.approved_by || null,
               approved_at: inv.approved_at || null,
               notes: inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || '',
-              updated_at: nowIso
+              updated_at: inv.updated_at || nowIso
             }))).then(() => {}).catch(() => {});
           }
 
@@ -5531,20 +5834,7 @@ END $$;
               note: p.note || '',
               slip_data: p.slip_data || null,
               matched_invoices: p.matched_invoices || [],
-              updated_at: nowIso
-            }))).then(() => {}).catch(() => {});
-          }
-
-          if (cleanState.companyBankAccounts && cleanState.companyBankAccounts.length > 0) {
-            this.client.from('company_bank_accounts').upsert(cleanState.companyBankAccounts.map(b => ({
-              id: b.id,
-              bank_code: b.bank_code || '',
-              bank_name: b.bank_name || '',
-              account_number: b.account_number || '',
-              account_name: b.account_name || '',
-              logo_file: b.logo_file || '',
-              is_default: !!b.is_default,
-              updated_at: nowIso
+              updated_at: p.updated_at || nowIso
             }))).then(() => {}).catch(() => {});
           }
 
@@ -5554,12 +5844,11 @@ END $$;
               payment_id: a.payment_id || '',
               invoice_id: a.invoice_id || '',
               allocated_amount: Number(a.allocated_amount || 0),
-              updated_at: nowIso
+              updated_at: a.updated_at || nowIso
             }))).then(() => {}).catch(() => {});
           }
 
           if (cleanState.audit_logs && cleanState.audit_logs.length > 0) {
-            // Keep latest 100 logs in individual table
             this.client.from('audit_logs').upsert(cleanState.audit_logs.slice(0, 100).map(l => ({
               id: l.id,
               timestamp: String(l.timestamp || ''),
@@ -5571,42 +5860,41 @@ END $$;
             }))).then(() => {}).catch(() => {});
           }
 
+          // Reset pending change state
+          DataManager.resetChanged();
           this.lastSyncTime = new Date();
           this.isSyncing = false;
-          this.updateStatusBadge('connected', `ซิงค์แล้ว (${this.formatTime(this.lastSyncTime)})`);
+          this.updateStatusBadge('connected', `บันทึกแล้ว (${this.formatTime(this.lastSyncTime)})`);
+          this.updateHeaderSaveButton();
 
           if (!silent) {
-            App.showToast(`⬆️ ซิงค์ข้อมูลขึ้น Supabase Cloud สำเร็จ (${cleanState.invoices?.length || 0} บิล)`, 'success');
+            App.showToast(`✅ บันทึกข้อมูลขึ้น Cloud สำเร็จเรียบร้อย (${cleanState.invoices?.length || 0} บิล, ${cleanState.payments?.length || 0} ยอดรับชำระ)`, 'success');
           }
         } catch (err) {
           this.isSyncing = false;
           console.error('Supabase push error:', err);
-          this.pendingPushState = state;
           this.updateStatusBadge('error', 'บันทึก Cloud ไม่สำเร็จ');
+          this.updateHeaderSaveButton();
           if (!silent) App.showToast('เกิดข้อผิดพลาดในการบันทึกขึ้น Cloud: ' + (err.message || 'โปรดตรวจสอบสัญญาณเน็ต'), 'error');
+        } finally {
+          if (saveBtn) saveBtn.style.opacity = '1';
         }
+      },
+
+      // Backward compatible alias
+      async pushAllData(state, silent = true) {
+        return this.pushAllDataSecure(silent);
       },
 
       debouncedPush(state, immediate = false) {
-        if (!state) return;
-        this.pendingPushState = state;
-        if (!this.client || !this.isConnected) return;
-
         if (immediate) {
-          if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
-          this.pushAllData(state, true);
-          return;
+          this.pushAllDataSecure(true);
         }
-
-        if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
-        this.syncDebounceTimer = setTimeout(() => {
-          this.pushAllData(state, true);
-        }, 350);
       },
 
       flushPendingPush() {
-        if (this.pendingPushState && this.client && this.isConnected) {
-          this.pushAllData(this.pendingPushState, true);
+        if (DataManager.hasPendingChanges && this.client && this.isConnected) {
+          this.pushAllDataSecure(true);
         }
       },
 
@@ -5616,150 +5904,7 @@ END $$;
         if (this.pullDebounceTimer) clearTimeout(this.pullDebounceTimer);
         this.pullDebounceTimer = setTimeout(() => {
           this.pullFreshData(showToast);
-        }, 400);
-      },
-
-      async pullFreshData(showToast = false) {
-        if (!this.client || !this.isConnected) return;
-        this.updateStatusBadge('syncing', 'กำลังดึงข้อมูลจาก Cloud...');
-        try {
-          const { data, error } = await this.client.from('app_state_backup').select('state_data').eq('id', 'main_state').single();
-          if (data && data.state_data) {
-            const cloudState = data.state_data;
-            let hasChanges = false;
-
-            // Check if local is just initial demo data or completely empty
-            const localInvoices = App.state.invoices || [];
-            const isLocalEmptyOrDemo = localInvoices.length === 0 || (localInvoices.length <= 4 && localInvoices.some(i => i.iv_number === 'IV-6708001'));
-
-            if (isLocalEmptyOrDemo && Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0) {
-              // Completely adopt cloud state for new device / fresh load
-              App.state.invoices = cloudState.invoices;
-              if (Array.isArray(cloudState.customers)) App.state.customers = cloudState.customers;
-              if (Array.isArray(cloudState.payments)) App.state.payments = cloudState.payments;
-              if (Array.isArray(cloudState.payment_allocations)) App.state.payment_allocations = cloudState.payment_allocations;
-              if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
-                App.state.companyBankAccounts = cloudState.companyBankAccounts;
-              }
-              if (Array.isArray(cloudState.audit_logs)) App.state.audit_logs = cloudState.audit_logs;
-              hasChanges = true;
-            } else {
-              // Smart reconciliation for multi-device concurrent usage
-              if (Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0) {
-                const currentInvMap = new Map((App.state.invoices || []).map(i => [i.iv_number || i.id, i]));
-                const mergedInvoices = [];
-                
-                cloudState.invoices.forEach(cinv => {
-                  const key = cinv.iv_number || cinv.id;
-                  if (!currentInvMap.has(key)) {
-                    mergedInvoices.push(cinv);
-                    hasChanges = true;
-                  } else {
-                    const existing = currentInvMap.get(key);
-                    // Update if status, paid amount, approval or items changed
-                    if (existing.status !== cinv.status || existing.paid_amount !== cinv.paid_amount || cinv.approved_by || (cinv.slip_data && !existing.slip_data)) {
-                      Object.assign(existing, cinv);
-                      hasChanges = true;
-                    }
-                    mergedInvoices.push(existing);
-                    currentInvMap.delete(key);
-                  }
-                });
-
-                // Keep local invoices that haven't synced yet
-                currentInvMap.forEach(localOnlyInv => {
-                  mergedInvoices.unshift(localOnlyInv);
-                  hasChanges = true;
-                });
-
-                App.state.invoices = mergedInvoices;
-              }
-
-              if (Array.isArray(cloudState.customers) && cloudState.customers.length > 0) {
-                const custMap = new Map((App.state.customers || []).map(c => [c.id, c]));
-                cloudState.customers.forEach(ccust => {
-                  if (!custMap.has(ccust.id)) {
-                    App.state.customers.push(ccust);
-                    hasChanges = true;
-                  } else {
-                    const existing = custMap.get(ccust.id);
-                    if (existing.name !== ccust.name || existing.phone !== ccust.phone) {
-                      Object.assign(existing, ccust);
-                      hasChanges = true;
-                    }
-                  }
-                });
-              }
-
-              if (Array.isArray(cloudState.payments) && cloudState.payments.length > 0) {
-                const payMap = new Map((App.state.payments || []).map(p => [p.payment_number || p.id, p]));
-                cloudState.payments.forEach(cpay => {
-                  const key = cpay.payment_number || cpay.id;
-                  if (!payMap.has(key)) {
-                    App.state.payments.unshift(cpay);
-                    hasChanges = true;
-                  }
-                });
-              }
-
-              if (Array.isArray(cloudState.payment_allocations) && cloudState.payment_allocations.length > 0) {
-                App.state.payment_allocations = cloudState.payment_allocations;
-              }
-
-              if (cloudState.adminPin && cloudState.adminPin !== App.state.adminPin) {
-                App.state.adminPin = cloudState.adminPin;
-                hasChanges = true;
-              }
-              if (cloudState.ceoPin && cloudState.ceoPin !== App.state.ceoPin) {
-                App.state.ceoPin = cloudState.ceoPin;
-                hasChanges = true;
-              }
-              if (cloudState.staffPin && cloudState.staffPin !== App.state.staffPin) {
-                App.state.staffPin = cloudState.staffPin;
-                hasChanges = true;
-              }
-              if (Array.isArray(cloudState.salespersons) && cloudState.salespersons.length > 0) {
-                App.state.salespersons = cloudState.salespersons;
-                hasChanges = true;
-              }
-
-              if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
-                if (!App.state.companyBankAccounts || App.state.companyBankAccounts.length === 0) {
-                  App.state.companyBankAccounts = cloudState.companyBankAccounts;
-                  hasChanges = true;
-                }
-              }
-
-              if (Array.isArray(cloudState.audit_logs) && cloudState.audit_logs.length > 0) {
-                const logMap = new Set((App.state.audit_logs || []).map(l => l.id));
-                cloudState.audit_logs.forEach(clog => {
-                  if (!logMap.has(clog.id)) {
-                    App.state.audit_logs.unshift(clog);
-                    hasChanges = true;
-                  }
-                });
-              }
-            }
-
-            if (hasChanges) {
-              DataManager.ensureDataIntegrity(App.state);
-              DataManager.saveLocalOnly(App.state);
-              App.refreshAllViews();
-              if (showToast) {
-                App.showToast(`📥 ซิงค์ข้อมูลจาก Cloud เรียบร้อย (${App.state.invoices?.length || 0} บิล)`, 'success');
-              }
-            } else if (showToast) {
-              DataManager.ensureDataIntegrity(App.state);
-              App.refreshAllViews();
-              App.showToast(`✓ ข้อมูลตรงกับ Cloud เป็นปัจจุบันแล้ว (${App.state.invoices?.length || 0} บิล)`, 'info');
-            }
-          }
-          this.lastSyncTime = new Date();
-          this.updateStatusBadge('connected', `ข้อมูลล่าสุด (${this.formatTime(this.lastSyncTime)})`);
-        } catch (err) {
-          console.warn('Pull fresh data note:', err);
-          this.updateStatusBadge('connected');
-        }
+        }, 600);
       },
 
       subscribeRealtime() {
@@ -5795,7 +5940,7 @@ END $$;
           this.showSqlSchemaModal();
           return;
         }
-        this.pushAllData(App.state, false);
+        this.pushAllDataSecure(false);
       },
 
       pullFreshDataManual() {
@@ -8630,11 +8775,11 @@ END $$;
         document.getElementById('confirmStatementSaveModal').classList.remove('active');
       },
 
-      executeSave() {
+      async executeSave() {
         const saveBtn = document.getElementById('btnExecuteBatchSave');
         if (saveBtn) {
           saveBtn.disabled = true;
-          saveBtn.innerHTML = '<span>⏳ กำลังบันทึกข้อมูล...</span>';
+          saveBtn.innerHTML = '<span>⏳ กำลังบันทึกข้อมูลและบีบอัดรูปภาพ...</span>';
         }
 
         try {
@@ -8656,6 +8801,7 @@ END $$;
           if (!Array.isArray(App.state.payments)) App.state.payments = [];
           if (!Array.isArray(App.state.invoices)) App.state.invoices = [];
           if (!Array.isArray(App.state.customers)) App.state.customers = [];
+          if (!Array.isArray(App.state.payment_allocations)) App.state.payment_allocations = [];
           if (!Array.isArray(App.state.audit_logs)) App.state.audit_logs = [];
 
           const accountInfo = {
@@ -8670,10 +8816,14 @@ END $$;
           let totalSavedAmount = 0;
           let totalUpdatedBills = 0;
 
-          matchedTxs.forEach((tx, txIdx) => {
+          for (let txIdx = 0; txIdx < matchedTxs.length; txIdx++) {
+            const tx = matchedTxs[txIdx];
             let snippetProofDataUrl = null;
             try {
               snippetProofDataUrl = OCRApp.generateStatementSnippet(tx, accountInfo);
+              if (snippetProofDataUrl && typeof ImageCompressor !== 'undefined') {
+                snippetProofDataUrl = await ImageCompressor.compress(snippetProofDataUrl, 800, 0.75);
+              }
             } catch (e) {
               console.warn('generateStatementSnippet error:', e);
               snippetProofDataUrl = OCRApp.fileDataUrl;
@@ -8688,6 +8838,9 @@ END $$;
             let highlightedPageUrl = null;
             try {
               highlightedPageUrl = OCRApp.generateHighlightedPageImage(pageNum, tx, pageDataUrl);
+              if (highlightedPageUrl && typeof ImageCompressor !== 'undefined') {
+                highlightedPageUrl = await ImageCompressor.compress(highlightedPageUrl, 1000, 0.70);
+              }
             } catch (e) {
               console.warn('generateHighlightedPageImage error:', e);
               highlightedPageUrl = pageDataUrl;
@@ -8699,11 +8852,12 @@ END $$;
             (tx.allocated_bills || []).forEach(b => {
               const inv = App.state.invoices.find(i => i.id === b.invoiceId || i.iv_number === b.invoiceNumber);
               if (!inv) return;
-              const payAmt = parseFloat(b.deductAmount) || 0;
+              const payAmt = DataManager.round2(parseFloat(b.deductAmount) || 0);
               if (payAmt <= 0) return;
 
-              inv.paid_amount = (parseFloat(inv.paid_amount) || 0) + payAmt;
-              inv.outstanding_amount = Math.max(0, (parseFloat(inv.outstanding_amount !== undefined ? inv.outstanding_amount : inv.total_amount) || 0) - payAmt);
+              inv.paid_amount = DataManager.round2((parseFloat(inv.paid_amount) || 0) + payAmt);
+              inv.outstanding_amount = DataManager.round2(Math.max(0, (parseFloat(inv.outstanding_amount !== undefined ? inv.outstanding_amount : inv.total_amount) || 0) - payAmt));
+              inv.updated_at = new Date().toISOString();
 
               inv.slip_data = {
                 payment_id: payId,
@@ -8717,9 +8871,9 @@ END $$;
                 receiver_account: accountInfo.accNo || '-',
                 amount: inv.paid_amount,
                 proof_data_url: snippetProofDataUrl,
-                original_file_url: pageDataUrl,
+                original_file_url: highlightedPageUrl || pageDataUrl,
                 highlighted_page_url: highlightedPageUrl,
-                all_pages: OCRApp.pdfPageImages ? { ...OCRApp.pdfPageImages } : null,
+                all_pages: null,
                 page_number: pageNum,
                 total_pdf_pages: totalPdfPages,
                 crop_info: {
@@ -8734,7 +8888,6 @@ END $$;
                 type: 'STATEMENT'
               };
 
-              if (!Array.isArray(App.state.payment_allocations)) App.state.payment_allocations = [];
               App.state.payment_allocations.push({
                 id: 'ALC-' + Math.floor(1000 + Math.random() * 9000),
                 payment_id: payId,
@@ -8749,7 +8902,7 @@ END $$;
               }
 
               matchedIvNumbers.push(inv.iv_number);
-              totalSavedAmount += payAmt;
+              totalSavedAmount = DataManager.round2(totalSavedAmount + payAmt);
               totalUpdatedBills++;
             });
 
@@ -8759,7 +8912,9 @@ END $$;
               return inv && inv.customer_id === c.id;
             }) || App.state.customers[0] || { id: 'CUST-001', name: 'ลูกค้าทั่วไป' };
 
-            const totalDeducted = (tx.allocated_bills || []).reduce((s, b) => s + (parseFloat(b.deductAmount) || 0), 0);
+            const totalDeducted = DataManager.round2((tx.allocated_bills || []).reduce((s, b) => s + (parseFloat(b.deductAmount) || 0), 0));
+            const txAmt = DataManager.round2(tx.amount);
+            const unmatchedAmt = DataManager.round2(Math.max(0, txAmt - totalDeducted));
 
             App.state.payments.unshift({
               id: payId,
@@ -8767,11 +8922,12 @@ END $$;
               customer_id: primaryCust.id,
               payment_date: (tx.datetime || App.getLocalDateTimeStr()).split(' ')[0],
               payment_type: 'TRANSFER',
-              amount: tx.amount,
+              amount: txAmt,
               matched_amount: totalDeducted,
-              unmatched_amount: Math.max(0, tx.amount - totalDeducted),
+              unmatched_amount: unmatchedAmt,
               reference_number: 'STMT-' + (tx.id || ('TX' + (txIdx + 1))),
               note: 'Match อัจฉริยะจาก OCR Statement หน้า ' + pageNum + ' กับบิล [' + matchedIvNumbers.join(', ') + ']',
+              updated_at: new Date().toISOString(),
               slip_data: {
                 payment_id: payId,
                 is_bundled: isBundledTx,
@@ -8782,11 +8938,11 @@ END $$;
                 receiver_name: dynamicReceiverName,
                 receiver_bank: accountInfo.bank,
                 receiver_account: accountInfo.accNo || '-',
-                amount: tx.amount,
+                amount: txAmt,
                 proof_data_url: snippetProofDataUrl,
-                original_file_url: pageDataUrl,
+                original_file_url: highlightedPageUrl || pageDataUrl,
                 highlighted_page_url: highlightedPageUrl,
-                all_pages: OCRApp.pdfPageImages ? { ...OCRApp.pdfPageImages } : null,
+                all_pages: null,
                 page_number: pageNum,
                 total_pdf_pages: totalPdfPages,
                 crop_info: {
@@ -8813,7 +8969,7 @@ END $$;
             });
 
             tx.status = 'COMMITTED';
-          });
+          }
 
           DataManager.save(App.state);
           this.close();
@@ -10719,11 +10875,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
           targetInvoices.forEach(inv => {
             if (remainingToMatch <= 0) return;
-            const currentOutstanding = parseFloat(inv.outstanding_amount !== undefined ? inv.outstanding_amount : inv.total_amount) || 0;
-            const matchAmt = Math.min(remainingToMatch, currentOutstanding);
+            const currentOutstanding = DataManager.round2(parseFloat(inv.outstanding_amount !== undefined ? inv.outstanding_amount : inv.total_amount) || 0);
+            const matchAmt = DataManager.round2(Math.min(remainingToMatch, currentOutstanding));
 
-            inv.paid_amount = (parseFloat(inv.paid_amount) || 0) + matchAmt;
-            inv.outstanding_amount = Math.max(0, currentOutstanding - matchAmt);
+            inv.paid_amount = DataManager.round2((parseFloat(inv.paid_amount) || 0) + matchAmt);
+            inv.outstanding_amount = DataManager.round2(Math.max(0, currentOutstanding - matchAmt));
+            inv.updated_at = new Date().toISOString();
             inv.slip_data = constructedSlipData;
 
             if (note) {
@@ -10737,7 +10894,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               inv.status = 'PARTIAL';
             }
 
-            remainingToMatch -= matchAmt;
+            remainingToMatch = DataManager.round2(remainingToMatch - matchAmt);
             matchedIvNumbers.push(inv.iv_number);
 
             App.state.payment_allocations.push({
@@ -10754,10 +10911,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             const overpayNote = `โอนเกิน ฿${App.formatCurrency(remainingToMatch)}` + (note ? ` (${note})` : '');
             primaryInv.notes = primaryInv.notes ? `${primaryInv.notes} | ${overpayNote}` : overpayNote;
             primaryInv.payment_note = primaryInv.notes;
+            primaryInv.updated_at = new Date().toISOString();
           }
 
-          const matchedAmt = amount - remainingToMatch;
-          const unmatchedAmt = remainingToMatch;
+          const amtRounded = DataManager.round2(amount);
+          const matchedAmt = DataManager.round2(amtRounded - remainingToMatch);
+          const unmatchedAmt = DataManager.round2(remainingToMatch);
 
           App.state.payments.unshift({
             id: payId,
@@ -10765,7 +10924,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             customer_id: custId,
             payment_date: date,
             payment_type: type,
-            amount: amount,
+            amount: amtRounded,
             matched_amount: matchedAmt,
             unmatched_amount: unmatchedAmt,
             reference_number: ref,
@@ -10773,6 +10932,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             notes: note || (unmatchedAmt > 0 ? `มียอดโอนเกิน ฿${App.formatCurrency(unmatchedAmt)}` : ''),
             status: 'MATCHED',
             matched_invoices: matchedIvNumbers,
+            updated_at: new Date().toISOString(),
             slip_data: constructedSlipData
           });
 
@@ -12030,12 +12190,34 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const hasPayment = (parseFloat(inv.paid_amount) > 0) || !!inv.slip_data || inv.status === 'PAID' || inv.status === 'WAITING_APPROVAL' || isTransferred;
         const isUnpaid = !isTransferred && (!hasPayment || (inv.status === 'UNPAID' && !inv.slip_data && (parseFloat(inv.paid_amount) || 0) === 0));
 
-        const slip = inv.slip_data || null;
+        let slip = inv.slip_data || null;
+        if (!slip && Array.isArray(App.state.payment_allocations)) {
+          const alloc = App.state.payment_allocations.find(a => a.invoice_id === inv.id);
+          if (alloc && Array.isArray(App.state.payments)) {
+            const pay = App.state.payments.find(p => p.id === alloc.payment_id);
+            if (pay && pay.slip_data) {
+              slip = pay.slip_data;
+            }
+          }
+        }
+        if (!slip && Array.isArray(App.state.payments)) {
+          const pay = App.state.payments.find(p => p.slip_data && (p.reference_number === inv.iv_number || (p.note && p.note.includes(inv.iv_number))));
+          if (pay && pay.slip_data) {
+            slip = pay.slip_data;
+          }
+        }
 
         const isCheque = slip && slip.type === 'CHEQUE';
         const isInvoiceDoc = slip && slip.type === 'INVOICE_DOC';
-        const isStatement = slip && (slip.type === 'STATEMENT' || !!slip.original_file_url);
-        const isCash = slip && !isCheque && !isInvoiceDoc && !isStatement && !slip.proof_data_url;
+        const isStatement = slip && (
+          slip.type === 'STATEMENT' || 
+          (slip.ref_no && slip.ref_no.startsWith('STMT')) || 
+          !!slip.original_file_url || 
+          !!slip.highlighted_page_url || 
+          (slip.crop_info && slip.crop_info.txIndex)
+        );
+        const isTransfer = slip && (slip.type === 'TRANSFER' || !!slip.bank || (slip.ref_no && !slip.ref_no.startsWith('CASH')));
+        const isCash = slip && (slip.type === 'CASH' || (!isCheque && !isInvoiceDoc && !isStatement && !isTransfer && !slip.proof_data_url));
 
         const pageNum = slip ? (slip.page_number || slip.crop_info?.pageNumber || 1) : 1;
         this.selectedPageNum = pageNum;
@@ -12206,13 +12388,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           // --- HAS PAYMENT PROOF / SLIP / STATEMENT / CHEQUE ---
           let rightProofHtml = '';
           if (isStatement) {
-            const originalImgUrl = slip.original_file_url || slip.proof_data_url;
-            const snippetImgUrl = slip.proof_data_url || originalImgUrl;
+            const originalImgUrl = slip.highlighted_page_url || slip.original_file_url || slip.proof_data_url || '';
+            const snippetImgUrl = slip.proof_data_url || slip.highlighted_page_url || originalImgUrl || '';
             const txIdx = slip.crop_info?.txIndex || 1;
-            const allPages = slip.all_pages || OCRApp.pdfPageImages || null;
+            const allPages = slip.all_pages || OCRApp.pdfPageImages || (originalImgUrl ? { [pageNum]: originalImgUrl } : null);
 
             let pageButtonsHtml = '';
-            if (totalPages > 1 && allPages) {
+            if (totalPages > 1 && allPages && Object.keys(allPages).length > 1) {
               pageButtonsHtml = '<div style="display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap;">' +
                 Object.keys(allPages).map(Number).sort((a,b) => a-b).map(p => {
                   const isTarget = p === pageNum;
@@ -12222,45 +12404,54 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
                 '</div>';
             }
 
-            rightProofHtml =
-              '<div class="statement-proof-tabs">' +
-              '<button type="button" class="statement-proof-tab-btn ' + (this.currentProofTab === 'original' ? 'active' : '') + '" id="btnProofTabOriginal" onclick="SlipInspectModal.switchProofTab(\'original\')">' +
-              '📄 เอกสารต้นฉบับ Original (หน้าที่ ' + pageNum + (totalPages > 1 ? ' / ' + totalPages : '') + ')' +
-              '</button>' +
-              '<button type="button" class="statement-proof-tab-btn ' + (this.currentProofTab === 'snippet' ? 'active' : '') + '" id="btnProofTabSnippet" onclick="SlipInspectModal.switchProofTab(\'snippet\')">' +
-              '✂️ จุดที่ Crop (Snippet รายการนี้)' +
-              '</button>' +
-              '</div>' +
+            if (originalImgUrl || snippetImgUrl) {
+              rightProofHtml =
+                '<div class="statement-proof-tabs">' +
+                '<button type="button" class="statement-proof-tab-btn ' + (this.currentProofTab === 'original' ? 'active' : '') + '" id="btnProofTabOriginal" onclick="SlipInspectModal.switchProofTab(\'original\')">' +
+                '📄 เอกสารต้นฉบับ Original (หน้าที่ ' + pageNum + (totalPages > 1 ? ' / ' + totalPages : '') + ')' +
+                '</button>' +
+                '<button type="button" class="statement-proof-tab-btn ' + (this.currentProofTab === 'snippet' ? 'active' : '') + '" id="btnProofTabSnippet" onclick="SlipInspectModal.switchProofTab(\'snippet\')">' +
+                '✂️ จุดที่ Crop (Snippet รายการนี้)' +
+                '</button>' +
+                '</div>' +
 
-              '<!-- Full Original Page View -->' +
-              '<div id="proofViewOriginal" style="' + (this.currentProofTab === 'original' ? 'display:block;' : 'display:none;') + '">' +
-              pageButtonsHtml +
-              '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 4px 8px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11.5px;">' +
-              '<span>📄 <strong>เอกสารต้นฉบับหน้าที่ ' + pageNum + '</strong> ' + (totalPages > 1 ? '(จากทั้งหมด ' + totalPages + ' หน้า)' : '') + '</span>' +
-              '<span class="badge badge-paid" style="font-size: 10px;">⭐ หน้าที่มียอดรายการนี้</span>' +
-              '</div>' +
-              '<div class="statement-original-container" style="margin-bottom: 8px; max-height: 240px;">' +
-              '<img id="slipModalOriginalImg" src="' + originalImgUrl + '" alt="Original Statement Page ' + pageNum + '" onclick="LightboxModal.open(\'' + originalImgUrl + '\', \'ไฟล์เอกสาร Statement ต้นฉบับหน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })" title="คลิกเพื่อขยายดูไฟล์ต้นฉบับเต็มจอ">' +
-              '</div>' +
-              '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
-              '<span style="font-size: 11px; color: var(--text-muted);">💡 เปิดดูที่หน้า ' + pageNum + ' พร้อมแถบข้อมูลวัน-เวลาและยอดเงิน</span>' +
-              '<button type="button" class="btn btn-primary" style="padding: 3px 10px; font-size: 11.5px;" onclick="LightboxModal.open(\'' + originalImgUrl + '\', \'ไฟล์เอกสาร Statement ต้นฉบับหน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })">' +
-              '🔍 ขยายดูหน้า ' + pageNum + ' เต็มจอ' +
-              '</button>' +
-              '</div>' +
-              '</div>' +
+                '<!-- Full Original Page View -->' +
+                '<div id="proofViewOriginal" style="' + (this.currentProofTab === 'original' ? 'display:block;' : 'display:none;') + '">' +
+                pageButtonsHtml +
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 4px 8px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11.5px;">' +
+                '<span>📄 <strong>เอกสารต้นฉบับหน้าที่ ' + pageNum + '</strong> ' + (totalPages > 1 ? '(จากทั้งหมด ' + totalPages + ' หน้า)' : '') + '</span>' +
+                '<span class="badge badge-paid" style="font-size: 10px;">⭐ หน้าที่มียอดรายการนี้</span>' +
+                '</div>' +
+                '<div class="statement-original-container" style="margin-bottom: 8px; max-height: 240px;">' +
+                '<img id="slipModalOriginalImg" src="' + (originalImgUrl || snippetImgUrl) + '" alt="Original Statement Page ' + pageNum + '" onclick="LightboxModal.open(\'' + (originalImgUrl || snippetImgUrl) + '\', \'ไฟล์เอกสาร Statement ต้นฉบับหน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })" title="คลิกเพื่อขยายดูไฟล์ต้นฉบับเต็มจอ">' +
+                '</div>' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
+                '<span style="font-size: 11px; color: var(--text-muted);">💡 เปิดดูที่หน้า ' + pageNum + ' พร้อมแถบข้อมูลวัน-เวลาและยอดเงิน</span>' +
+                '<button type="button" class="btn btn-primary" style="padding: 3px 10px; font-size: 11.5px;" onclick="LightboxModal.open(\'' + (originalImgUrl || snippetImgUrl) + '\', \'ไฟล์เอกสาร Statement ต้นฉบับหน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })">' +
+                '🔍 ขยายดูหน้า ' + pageNum + ' เต็มจอ' +
+                '</button>' +
+                '</div>' +
+                '</div>' +
 
-              '<!-- Snippet View -->' +
-              '<div id="proofViewSnippet" style="' + (this.currentProofTab === 'snippet' ? 'display:block;' : 'display:none;') + '">' +
-              '<div class="proof-interactive-viewer" style="margin-bottom: 8px; max-height: 200px;">' +
-              '<img src="' + snippetImgUrl + '" alt="Statement Crop Snippet" onclick="LightboxModal.open(\'' + snippetImgUrl + '\', \'ภาพตัดรายการ Statement (ลำดับที่ #' + txIdx + ' • หน้าที่ ' + pageNum + ') #' + inv.iv_number + '\')" title="คลิกเพื่อขยายภาพเต็มจอ">' +
-              '<div class="proof-viewer-toolbar">' +
-              '<button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="LightboxModal.open(\'' + snippetImgUrl + '\', \'ภาพตัดรายการ Statement (ลำดับที่ #' + txIdx + ' • หน้าที่ ' + pageNum + ') #' + inv.iv_number + '\')">' +
-              '🔍 ขยายดูภาพ Snippet' +
-              '</button>' +
-              '</div>' +
-              '</div>' +
-              '</div>';
+                '<!-- Snippet View -->' +
+                '<div id="proofViewSnippet" style="' + (this.currentProofTab === 'snippet' ? 'display:block;' : 'display:none;') + '">' +
+                '<div class="proof-interactive-viewer" style="margin-bottom: 8px; max-height: 200px;">' +
+                '<img src="' + (snippetImgUrl || originalImgUrl) + '" alt="Statement Crop Snippet" onclick="LightboxModal.open(\'' + (snippetImgUrl || originalImgUrl) + '\', \'ภาพตัดรายการ Statement (ลำดับที่ #' + txIdx + ' • หน้าที่ ' + pageNum + ') #' + inv.iv_number + '\')" title="คลิกเพื่อขยายภาพเต็มจอ">' +
+                '<div class="proof-viewer-toolbar">' +
+                '<button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="LightboxModal.open(\'' + (snippetImgUrl || originalImgUrl) + '\', \'ภาพตัดรายการ Statement (ลำดับที่ #' + txIdx + ' • หน้าที่ ' + pageNum + ') #' + inv.iv_number + '\')">' +
+                '🔍 ขยายดูภาพ Snippet' +
+                '</button>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+            } else {
+              rightProofHtml = '<div style="background: rgba(16, 185, 129, 0.08); border: 1.5px dashed rgba(16, 185, 129, 0.35); border-radius: var(--radius-md); padding: 16px; text-align: center; margin-bottom: 10px;">' +
+                '<div style="font-size: 28px; margin-bottom: 6px;">📑</div>' +
+                '<div style="font-weight: 700; color: #10b981; font-size: 13px;">รายการชำระเงินผ่าน Bank Statement (กระทบยอดสำเร็จ)</div>' +
+                '<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">เลขที่อ้างอิง: <strong class="font-mono text-emerald">' + (slip.ref_no || '-') + '</strong></div>' +
+                '<div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">ธนาคาร: <strong>' + (slip.bank || slip.receiver_bank || 'ธนาคาร') + '</strong> • วันที่โอน: ' + (slip.transfer_date || slip.datetime || '-') + '</div>' +
+                '</div>';
+            }
           } else if (slip && slip.proof_data_url) {
             rightProofHtml = '<div class="proof-interactive-viewer" style="margin-bottom: 10px; max-height: 180px;">' +
               '<img src="' + slip.proof_data_url + '" alt="Payment Proof" onclick="LightboxModal.open(\'' + slip.proof_data_url + '\', \'หลักฐานการชำระเงิน #' + inv.iv_number + '\')" title="คลิกเพื่อขยายภาพเต็มจอ">' +
@@ -12269,6 +12460,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               '🔍 ขยายภาพสลิป/เช็ค' +
               '</button>' +
               '</div>' +
+              '</div>';
+          } else if (isTransfer) {
+            rightProofHtml = '<div style="background: rgba(59, 130, 246, 0.08); border: 1.5px dashed rgba(59, 130, 246, 0.35); border-radius: var(--radius-md); padding: 16px; text-align: center; margin-bottom: 10px;">' +
+              '<div style="font-size: 28px; margin-bottom: 6px;">📱</div>' +
+              '<div style="font-weight: 700; color: #60a5fa; font-size: 13px;">รายการโอนเงินผ่านระบบธนาคาร</div>' +
+              '<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">ธนาคาร: <strong>' + (slip.bank || slip.receiver_bank || '-') + '</strong> • วันที่โอน: ' + (slip.transfer_date || slip.datetime || '-') + '</div>' +
               '</div>';
           } else {
             rightProofHtml = '<div style="background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); padding: 12px; text-align: center; font-size: 12px; color: var(--status-paid); margin-bottom: 10px;">' +
@@ -12523,7 +12720,14 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
       getPagesMap() {
         const inv = App.state.invoices.find(i => i.id === this.currentInvId);
-        return inv?.slip_data?.all_pages || OCRApp.pdfPageImages || null;
+        const slip = inv?.slip_data || null;
+        if (slip && slip.all_pages) return slip.all_pages;
+        if (OCRApp.pdfPageImages) return OCRApp.pdfPageImages;
+        if (slip && (slip.highlighted_page_url || slip.original_file_url)) {
+          const p = slip.page_number || 1;
+          return { [p]: slip.highlighted_page_url || slip.original_file_url };
+        }
+        return null;
       },
 
       close() {
