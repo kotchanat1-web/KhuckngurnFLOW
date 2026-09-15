@@ -5687,6 +5687,9 @@ END $$;
               if (cloudState.salespersons && cloudState.salespersons.length > 0) {
                 App.state.salespersons = cloudState.salespersons;
               }
+              if (cloudState.adminPin) App.state.adminPin = cloudState.adminPin;
+              if (cloudState.ceoPin) App.state.ceoPin = cloudState.ceoPin;
+              if (cloudState.staffPin) App.state.staffPin = cloudState.staffPin;
 
               // Update pending changes tracking accurately
               if (localHasUnsyncedEdits && unsyncedCount > 0) {
@@ -5695,7 +5698,6 @@ END $$;
               } else if (!DataManager.hasPendingChanges) {
                 DataManager.resetChanged();
               }
-            }
 
               DataManager.ensureDataIntegrity(App.state);
               DataManager.saveLocalOnly(App.state);
