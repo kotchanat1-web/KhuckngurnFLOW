@@ -4739,7 +4739,7 @@
 
         // Auto-synthesize & normalize any missing customer from invoices
         const custMap = new Map(state.customers.map(c => [c.id, c]));
-        const custByName = new Map(state.customers.map(c => [c.name.trim().toLowerCase(), c]));
+        const custByName = new Map((state.customers || []).map(c => [((c && c.name) || '').trim().toLowerCase(), c]));
 
         state.invoices.forEach(inv => {
           inv.total_amount = this.round2(inv.total_amount || 0);
@@ -4762,7 +4762,7 @@
             };
             state.customers.push(cust);
             custMap.set(newId, cust);
-            custByName.set(cust.name.trim().toLowerCase(), cust);
+            custByName.set((cust.name || '').trim().toLowerCase(), cust);
           }
           if (cust) {
             inv.customer_id = cust.id;
@@ -4927,18 +4927,30 @@
       saveLocalOnly(data) {
         if (!data) return;
         this.ensureDataIntegrity(data);
+        // 1. IndexedDB always retains 100% full master data (including all full-res slip images)
         IDBStateStore.set(this.STORAGE_KEY, data);
         IDBStateStore.set(this.MASTER_KEY, data);
 
+        // 2. LocalStorage has a 5MB browser quota; save sanitized version with fallback
         const sanitized = this.sanitizeForLocalStorage(data);
-        const jsonStr = JSON.stringify(sanitized);
-
         try {
+          const jsonStr = JSON.stringify(sanitized);
           localStorage.setItem(this.STORAGE_KEY, jsonStr);
           localStorage.setItem(this.MASTER_KEY, jsonStr);
         } catch (err) {
+          // If 5MB quota is exceeded by large base64 slip images, store compact version in localStorage
+          // while IndexedDB retains the complete images
           try {
-            localStorage.setItem(this.STORAGE_KEY, jsonStr);
+            const compact = JSON.parse(JSON.stringify(sanitized));
+            if (Array.isArray(compact.invoices)) {
+              compact.invoices.forEach(i => { if (i.slip_data && i.slip_data.proof_data_url) i.slip_data.proof_data_url = null; });
+            }
+            if (Array.isArray(compact.payments)) {
+              compact.payments.forEach(p => { if (p.slip_data && p.slip_data.proof_data_url && p.slip_data.proof_data_url.length > 50000) p.slip_data.proof_data_url = null; });
+            }
+            const compactJson = JSON.stringify(compact);
+            localStorage.setItem(this.STORAGE_KEY, compactJson);
+            localStorage.setItem(this.MASTER_KEY, compactJson);
           } catch (fallbackErr) {
             console.warn('LocalStorage write fallback note:', fallbackErr);
           }
@@ -5287,9 +5299,9 @@ END $$;
           dot.style.background = '#ef4444';
           dot.style.animation = 'none';
           txt.innerText = text || 'Cloud ผิดพลาด';
-          badge.title = 'ไม่สามารถเชื่อมต่อ Supabase ได้ (คลิกเพื่อตรวจสอบ URL / Key)';
+          badge.title = 'สถานะ Cloud: ' + (text || 'ไม่สามารถเชื่อมต่อได้ (คลิกเพื่อตรวจสอบ)');
           if (setBadge) {
-            setBadge.innerHTML = '🔴 เชื่อมต่อไม่สำเร็จ (ตรวจสอบ Key)';
+            setBadge.innerHTML = `🔴 ${text || 'เชื่อมต่อไม่สำเร็จ'}`;
             setBadge.style.background = 'rgba(239, 68, 68, 0.15)';
             setBadge.style.color = '#f87171';
           }
@@ -5500,8 +5512,7 @@ END $$;
         try {
           const clone = JSON.parse(JSON.stringify(state));
           
-          // PRESERVE real proof images (Statement crop, slip photos, cheque)!
-          // Only trim excessive multi-page PDF image arrays (all_pages) to keep snapshot clean
+          // PRESERVE real proof images in payments, but avoid duplicate image storage in invoices snapshot
           if (Array.isArray(clone.invoices)) {
             clone.invoices.forEach(inv => {
               if (inv.slip_data) {
@@ -5511,6 +5522,14 @@ END $$;
                     inv.slip_data.has_pdf_pages = pageKeys.length;
                     inv.slip_data.all_pages = null;
                   }
+                }
+                if (inv.slip_data.original_file_url && inv.slip_data.original_file_url.length > 200000) {
+                  inv.slip_data.original_file_url = null;
+                }
+                // Don't duplicate full proof image in invoice snapshot if it's already in payment
+                if (inv.slip_data.proof_data_url && inv.slip_data.proof_data_url.length > 60000) {
+                  inv.slip_data.has_proof = true;
+                  inv.slip_data.proof_data_url = null;
                 }
               }
             });
@@ -5525,6 +5544,9 @@ END $$;
                     p.slip_data.has_pdf_pages = pageKeys.length;
                     p.slip_data.all_pages = null;
                   }
+                }
+                if (p.slip_data.original_file_url && p.slip_data.original_file_url.length > 200000) {
+                  p.slip_data.original_file_url = null;
                 }
               }
             });
@@ -5547,131 +5569,133 @@ END $$;
             const hasCloudInvoices = Array.isArray(cloudState.invoices) && cloudState.invoices.length > 0;
 
             if (hasCloudInvoices) {
-              if (!DataManager.hasPendingChanges) {
-                // User has no unsaved local changes: adopt Cloud as Single Source of Truth!
-                // But preserve any local slip images from IDB if Cloud was missing them
-                const localInvMap = new Map((App.state.invoices || []).map(i => [i.id || i.iv_number, i]));
-                cloudState.invoices.forEach(cinv => {
-                  const local = localInvMap.get(cinv.id || cinv.iv_number);
-                  if (local && local.slip_data?.proof_data_url && !cinv.slip_data?.proof_data_url) {
-                    if (!cinv.slip_data) cinv.slip_data = {};
-                    cinv.slip_data.proof_data_url = local.slip_data.proof_data_url;
-                  }
-                  if (local && (local.slip_data?.highlighted_page_url || local.slip_data?.original_file_url) && !cinv.slip_data?.highlighted_page_url) {
-                    if (!cinv.slip_data) cinv.slip_data = {};
-                    cinv.slip_data.highlighted_page_url = local.slip_data.highlighted_page_url || local.slip_data.original_file_url;
-                  }
-                });
+              // ALWAYS-SAFE ZERO DATA LOSS SMART MERGE: Never overwrite local additions!
+              let localHasUnsyncedEdits = false;
+              let unsyncedCount = 0;
 
-                const localPayMap = new Map((App.state.payments || []).map(p => [p.id || p.payment_number, p]));
-                (cloudState.payments || []).forEach(cpay => {
-                  const local = localPayMap.get(cpay.id || cpay.payment_number);
-                  if (local && local.slip_data?.proof_data_url && !cpay.slip_data?.proof_data_url) {
-                    if (!cpay.slip_data) cpay.slip_data = {};
-                    cpay.slip_data.proof_data_url = local.slip_data.proof_data_url;
-                  }
-                  if (local && (local.slip_data?.highlighted_page_url || local.slip_data?.original_file_url) && !cpay.slip_data?.highlighted_page_url) {
-                    if (!cpay.slip_data) cpay.slip_data = {};
-                    cpay.slip_data.highlighted_page_url = local.slip_data.highlighted_page_url || local.slip_data.original_file_url;
-                  }
-                });
+              // 1. INVOICES (Never lose imported SPF/SDF bills or edited invoices)
+              const localInvMap = new Map((App.state.invoices || []).map(i => [i.id || i.iv_number, i]));
+              const mergedInvoices = [];
 
-                App.state.invoices = cloudState.invoices;
-                if (Array.isArray(cloudState.customers)) App.state.customers = cloudState.customers;
-                if (Array.isArray(cloudState.payments)) App.state.payments = cloudState.payments;
-                if (Array.isArray(cloudState.payment_allocations)) App.state.payment_allocations = cloudState.payment_allocations;
-                if (Array.isArray(cloudState.companyBankAccounts) && cloudState.companyBankAccounts.length > 0) {
-                  App.state.companyBankAccounts = cloudState.companyBankAccounts;
-                }
-                if (Array.isArray(cloudState.audit_logs)) App.state.audit_logs = cloudState.audit_logs;
-                if (cloudState.adminPin) App.state.adminPin = cloudState.adminPin;
-                if (cloudState.ceoPin) App.state.ceoPin = cloudState.ceoPin;
-                if (cloudState.staffPin) App.state.staffPin = cloudState.staffPin;
-                if (Array.isArray(cloudState.salespersons)) App.state.salespersons = cloudState.salespersons;
-                
-                DataManager.resetChanged();
-              } else {
-                // User has pending local edits: Anti-Rollback Smart Merge using timestamps!
-                // 1. INVOICES
-                const localInvMap = new Map((App.state.invoices || []).map(i => [i.id || i.iv_number, i]));
-                const mergedInvoices = [];
+              cloudState.invoices.forEach(cinv => {
+                const key = cinv.id || cinv.iv_number;
+                if (!localInvMap.has(key)) {
+                  mergedInvoices.push(cinv);
+                } else {
+                  const localInv = localInvMap.get(key);
+                  const cloudTime = new Date(cinv.updated_at || '1970-01-01').getTime();
+                  const localTime = new Date(localInv.updated_at || '1970-01-01').getTime();
 
-                cloudState.invoices.forEach(cinv => {
-                  const key = cinv.id || cinv.iv_number;
-                  if (!localInvMap.has(key)) {
+                  if (cloudTime > localTime) {
+                    if (localInv.slip_data?.proof_data_url && !cinv.slip_data?.proof_data_url) {
+                      if (!cinv.slip_data) cinv.slip_data = {};
+                      cinv.slip_data.proof_data_url = localInv.slip_data.proof_data_url;
+                    }
                     mergedInvoices.push(cinv);
                   } else {
-                    const localInv = localInvMap.get(key);
-                    const cloudTime = new Date(cinv.updated_at || '1970-01-01').getTime();
-                    const localTime = new Date(localInv.updated_at || '1970-01-01').getTime();
-
-                    if (cloudTime > localTime) {
-                      // Cloud is newer: adopt cloud, but preserve local slip proof if cloud is missing it
-                      if (localInv.slip_data?.proof_data_url && !cinv.slip_data?.proof_data_url) {
-                        if (!cinv.slip_data) cinv.slip_data = {};
-                        cinv.slip_data.proof_data_url = localInv.slip_data.proof_data_url;
-                      }
-                      mergedInvoices.push(cinv);
-                    } else {
-                      // Local is newer: keep local edits!
-                      mergedInvoices.push(localInv);
+                    mergedInvoices.push(localInv);
+                    if (localTime > cloudTime) {
+                      localHasUnsyncedEdits = true;
+                      unsyncedCount++;
                     }
-                    localInvMap.delete(key);
                   }
-                });
+                  localInvMap.delete(key);
+                }
+              });
 
-                // Keep local invoices that aren't on cloud yet
+              // Keep all local invoices that aren't on cloud yet!
+              if (localInvMap.size > 0) {
+                localHasUnsyncedEdits = true;
+                unsyncedCount += localInvMap.size;
                 localInvMap.forEach(localOnly => mergedInvoices.unshift(localOnly));
-                App.state.invoices = mergedInvoices;
+              }
+              App.state.invoices = mergedInvoices;
 
-                // 2. PAYMENTS (Never lose any payment!)
-                const localPayMap = new Map((App.state.payments || []).map(p => [p.id || p.payment_number, p]));
-                const mergedPayments = [];
+              // 2. PAYMENTS (Never lose any recorded payment!)
+              const localPayMap = new Map((App.state.payments || []).map(p => [p.id || p.payment_number, p]));
+              const mergedPayments = [];
 
-                (cloudState.payments || []).forEach(cpay => {
-                  const key = cpay.id || cpay.payment_number;
-                  if (!localPayMap.has(key)) {
+              (cloudState.payments || []).forEach(cpay => {
+                const key = cpay.id || cpay.payment_number;
+                if (!localPayMap.has(key)) {
+                  mergedPayments.push(cpay);
+                } else {
+                  const localPay = localPayMap.get(key);
+                  const cloudTime = new Date(cpay.updated_at || '1970-01-01').getTime();
+                  const localTime = new Date(localPay.updated_at || '1970-01-01').getTime();
+
+                  if (cloudTime > localTime) {
+                    if (localPay.slip_data?.proof_data_url && !cpay.slip_data?.proof_data_url) {
+                      if (!cpay.slip_data) cpay.slip_data = {};
+                      cpay.slip_data.proof_data_url = localPay.slip_data.proof_data_url;
+                    }
                     mergedPayments.push(cpay);
                   } else {
-                    const localPay = localPayMap.get(key);
-                    const cloudTime = new Date(cpay.updated_at || '1970-01-01').getTime();
-                    const localTime = new Date(localPay.updated_at || '1970-01-01').getTime();
-
-                    if (cloudTime > localTime) {
-                      if (localPay.slip_data?.proof_data_url && !cpay.slip_data?.proof_data_url) {
-                        if (!cpay.slip_data) cpay.slip_data = {};
-                        cpay.slip_data.proof_data_url = localPay.slip_data.proof_data_url;
-                      }
-                      mergedPayments.push(cpay);
-                    } else {
-                      mergedPayments.push(localPay);
+                    mergedPayments.push(localPay);
+                    if (localTime > cloudTime) {
+                      localHasUnsyncedEdits = true;
+                      unsyncedCount++;
                     }
-                    localPayMap.delete(key);
                   }
-                });
+                  localPayMap.delete(key);
+                }
+              });
 
+              // Keep all local payments that aren't on cloud yet!
+              if (localPayMap.size > 0) {
+                localHasUnsyncedEdits = true;
+                unsyncedCount += localPayMap.size;
                 localPayMap.forEach(localOnly => mergedPayments.unshift(localOnly));
-                App.state.payments = mergedPayments;
-
-                // 3. CUSTOMERS
-                const localCustMap = new Map((App.state.customers || []).map(c => [c.id, c]));
-                (cloudState.customers || []).forEach(ccust => {
-                  if (!localCustMap.has(ccust.id)) {
-                    App.state.customers.push(ccust);
-                  } else {
-                    const localC = localCustMap.get(ccust.id);
-                    const cloudTime = new Date(ccust.updated_at || '1970-01-01').getTime();
-                    const localTime = new Date(localC.updated_at || '1970-01-01').getTime();
-                    if (cloudTime > localTime) Object.assign(localC, ccust);
-                  }
-                });
-
-                // 4. ALLOCATIONS
-                const localAllocMap = new Set((App.state.payment_allocations || []).map(a => a.id));
-                (cloudState.payment_allocations || []).forEach(ca => {
-                  if (!localAllocMap.has(ca.id)) App.state.payment_allocations.push(ca);
-                });
               }
+              App.state.payments = mergedPayments;
+
+              // 3. CUSTOMERS (Never lose newly created or normalized customers)
+              const localCustMap = new Map((App.state.customers || []).map(c => [c.id, c]));
+              (cloudState.customers || []).forEach(ccust => {
+                if (!localCustMap.has(ccust.id)) {
+                  App.state.customers.push(ccust);
+                } else {
+                  const localC = localCustMap.get(ccust.id);
+                  const cloudTime = new Date(ccust.updated_at || '1970-01-01').getTime();
+                  const localTime = new Date(localC.updated_at || '1970-01-01').getTime();
+                  if (cloudTime > localTime) Object.assign(localC, ccust);
+                }
+              });
+
+              // 4. PAYMENT ALLOCATIONS (Never drop local debt allocations)
+              const localAllocMap = new Set((App.state.payment_allocations || []).map(a => a.id));
+              (cloudState.payment_allocations || []).forEach(ca => {
+                if (!localAllocMap.has(ca.id)) App.state.payment_allocations.push(ca);
+              });
+
+              // 5. AUDIT LOGS (Merge logs seamlessly by ID without wiping local logs)
+              const localLogMap = new Set((App.state.audit_logs || []).map(l => l.id || l.timestamp));
+              (cloudState.audit_logs || []).forEach(clog => {
+                const key = clog.id || clog.timestamp;
+                if (!localLogMap.has(key)) {
+                  App.state.audit_logs.push(clog);
+                }
+              });
+              // Sort logs newest first
+              App.state.audit_logs.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+              if (App.state.audit_logs.length > 500) App.state.audit_logs = App.state.audit_logs.slice(0, 500);
+
+              // 6. Settings & PINS
+              if (cloudState.companyBankAccounts && cloudState.companyBankAccounts.length > 0) {
+                App.state.companyBankAccounts = cloudState.companyBankAccounts;
+              }
+              if (cloudState.salespersons && cloudState.salespersons.length > 0) {
+                App.state.salespersons = cloudState.salespersons;
+              }
+
+              // Update pending changes tracking accurately
+              if (localHasUnsyncedEdits && unsyncedCount > 0) {
+                DataManager.hasPendingChanges = true;
+                DataManager.pendingChangeCount = unsyncedCount;
+              } else if (!DataManager.hasPendingChanges) {
+                DataManager.resetChanged();
+              }
+            }
 
               DataManager.ensureDataIntegrity(App.state);
               DataManager.saveLocalOnly(App.state);
@@ -5774,10 +5798,26 @@ END $$;
             updated_at: nowIso
           };
 
-          const { error: snapErr } = await this.client.from('app_state_backup').upsert(snapshot);
+          let snapErr = null;
+          try {
+            const res = await this.client.from('app_state_backup').upsert(snapshot, { onConflict: 'id' });
+            snapErr = res.error;
+          } catch (upsertEx) {
+            snapErr = upsertEx;
+          }
+
           if (snapErr) {
-            console.error('Error saving app_state_backup:', snapErr);
-            throw snapErr;
+            console.warn('Full snapshot upsert note, retrying with compact snapshot:', snapErr);
+            // Fallback: If Postgres returned 500 or WAL limit, strip image payloads from snapshot
+            // (individual payment tables and IndexedDB preserve images safely)
+            const lightSnapshot = JSON.parse(JSON.stringify(snapshot));
+            (lightSnapshot.state_data.invoices || []).forEach(i => { if (i.slip_data) i.slip_data.proof_data_url = null; });
+            (lightSnapshot.state_data.payments || []).forEach(p => { if (p.slip_data) p.slip_data.proof_data_url = null; });
+            const retryRes = await this.client.from('app_state_backup').upsert(lightSnapshot, { onConflict: 'id' });
+            if (retryRes.error) {
+              console.error('Compact snapshot also failed:', retryRes.error);
+              throw retryRes.error;
+            }
           }
 
           // 4. Batch push structured tables with full slip_data & timestamps
@@ -5789,53 +5829,61 @@ END $$;
               phone: c.phone || '',
               address: c.address || '',
               updated_at: c.updated_at || nowIso
-            }))).then(() => {}).catch(() => {});
+            })), { onConflict: 'id' }).then(() => {}).catch(() => {});
           }
 
           if (cleanState.invoices && cleanState.invoices.length > 0) {
-            this.client.from('invoices').upsert(cleanState.invoices.map(inv => ({
-              id: inv.id,
-              iv_number: inv.iv_number,
-              doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
-              customer_id: inv.customer_id,
-              customer_name: inv.customer_name || '',
-              invoice_date: String(inv.invoice_date || ''),
-              due_date: String(inv.due_date || ''),
-              delivery_vehicle: inv.delivery_vehicle || '',
-              salesperson: inv.salesperson || '',
-              total_amount: Number(inv.total_amount || 0),
-              paid_amount: Number(inv.paid_amount || 0),
-              outstanding_amount: Number(inv.outstanding_amount || 0),
-              status: inv.status || 'UNPAID',
-              items: inv.items || [],
-              amount_text: inv.amount_text || '',
-              raw_content: inv.raw_content || '',
-              source_file: inv.source_file || '',
-              slip_data: inv.slip_data || null,
-              approved_by: inv.approved_by || null,
-              approved_at: inv.approved_at || null,
-              notes: inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || '',
-              updated_at: inv.updated_at || nowIso
-            }))).then(() => {}).catch(() => {});
+            // Push invoices in chunks of 50
+            for (let i = 0; i < cleanState.invoices.length; i += 50) {
+              const chunk = cleanState.invoices.slice(i, i + 50);
+              this.client.from('invoices').upsert(chunk.map(inv => ({
+                id: inv.id,
+                iv_number: inv.iv_number,
+                doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
+                customer_id: inv.customer_id,
+                customer_name: inv.customer_name || '',
+                invoice_date: String(inv.invoice_date || ''),
+                due_date: String(inv.due_date || ''),
+                delivery_vehicle: inv.delivery_vehicle || '',
+                salesperson: inv.salesperson || '',
+                total_amount: Number(inv.total_amount || 0),
+                paid_amount: Number(inv.paid_amount || 0),
+                outstanding_amount: Number(inv.outstanding_amount || 0),
+                status: inv.status || 'UNPAID',
+                items: inv.items || [],
+                amount_text: inv.amount_text || '',
+                raw_content: inv.raw_content || '',
+                source_file: inv.source_file || '',
+                slip_data: inv.slip_data || null,
+                approved_by: inv.approved_by || null,
+                approved_at: inv.approved_at || null,
+                notes: inv.notes || inv.note || inv.remarks || inv.payment_note || inv.admin_note || '',
+                updated_at: inv.updated_at || nowIso
+              })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+            }
           }
 
           if (cleanState.payments && cleanState.payments.length > 0) {
-            this.client.from('payments').upsert(cleanState.payments.map(p => ({
-              id: p.id,
-              payment_number: p.payment_number,
-              customer_id: p.customer_id,
-              payment_date: String(p.payment_date || ''),
-              payment_type: p.payment_type || 'TRANSFER',
-              amount: Number(p.amount || 0),
-              matched_amount: Number(p.matched_amount || 0),
-              unmatched_amount: Number(p.unmatched_amount || 0),
-              reference_number: p.reference_number || '',
-              bank_account: p.bank_account || '',
-              note: p.note || '',
-              slip_data: p.slip_data || null,
-              matched_invoices: p.matched_invoices || [],
-              updated_at: p.updated_at || nowIso
-            }))).then(() => {}).catch(() => {});
+            // Push payments in chunks of 25 to preserve slip photos without hitting request size limits
+            for (let i = 0; i < cleanState.payments.length; i += 25) {
+              const chunk = cleanState.payments.slice(i, i + 25);
+              this.client.from('payments').upsert(chunk.map(p => ({
+                id: p.id,
+                payment_number: p.payment_number,
+                customer_id: p.customer_id,
+                payment_date: String(p.payment_date || ''),
+                payment_type: p.payment_type || 'TRANSFER',
+                amount: Number(p.amount || 0),
+                matched_amount: Number(p.matched_amount || 0),
+                unmatched_amount: Number(p.unmatched_amount || 0),
+                reference_number: p.reference_number || '',
+                bank_account: p.bank_account || '',
+                note: p.note || '',
+                slip_data: p.slip_data || null,
+                matched_invoices: p.matched_invoices || [],
+                updated_at: p.updated_at || nowIso
+              })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+            }
           }
 
           if (cleanState.payment_allocations && cleanState.payment_allocations.length > 0) {
@@ -5845,7 +5893,7 @@ END $$;
               invoice_id: a.invoice_id || '',
               allocated_amount: Number(a.allocated_amount || 0),
               updated_at: a.updated_at || nowIso
-            }))).then(() => {}).catch(() => {});
+            })), { onConflict: 'id' }).then(() => {}).catch(() => {});
           }
 
           if (cleanState.audit_logs && cleanState.audit_logs.length > 0) {
@@ -5857,7 +5905,7 @@ END $$;
               table_name: l.table_name || '',
               record_id: l.record_id || '',
               detail: l.detail || ''
-            }))).then(() => {}).catch(() => {});
+            })), { onConflict: 'id' }).then(() => {}).catch(() => {});
           }
 
           // Reset pending change state
@@ -10949,6 +10997,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           });
 
           DataManager.save(App.state);
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+            SupabaseSync.debouncedPush(App.state, true);
+          }
           this.close();
           App.refreshAllViews();
           App.showToast(`✅ บันทึกรับชำระเงิน ${payNumber} สำเร็จ (฿${App.formatCurrency(amount)}) บิลเข้าสู่คิวรอ CEO ตรวจสอบแล้ว`, 'success');
@@ -11758,6 +11809,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         });
 
         DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
         App.refreshAllViews();
         this.close();
         App.showToast(`นำเข้าบิลขาย Express สำเร็จ ${selected.length} รายการ (ยอดรวม ${App.formatCurrency(totalAmount)})`, 'success');
