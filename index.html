@@ -11134,12 +11134,10 @@ END $$;
           proofSection.style.display = type === 'CASH' ? 'none' : 'block';
         }
         if (reqLabel) {
-          if (type === 'TRANSFER') {
-            reqLabel.innerHTML = '<span style="color: #ef4444; font-weight: 700;">* จำเป็นต้องแนบรูปสลิป</span>';
-          } else if (type === 'CHEQUE') {
-            reqLabel.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">(แนะนำให้แนบรูปหน้าเช็ค)</span>';
+          if (type === 'CASH') {
+            reqLabel.innerHTML = '<span style="color: var(--status-paid); font-size: 11px;">(รับเงินสด ไม่ต้องแนบหลักฐาน)</span>';
           } else {
-            reqLabel.innerHTML = '';
+            reqLabel.innerHTML = '<span style="color: #ef4444; font-weight: 700;">* จำเป็นต้องแนบรูปภาพหลักฐาน (สลิป/หน้าเช็ค/Statement) เสมอ</span>';
           }
         }
       },
@@ -11344,9 +11342,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             return;
           }
 
-          // STRICT MANDATORY PROOF VALIDATION FOR TRANSFER METHOD
-          if (type === 'TRANSFER' && !this.proofDataUrl) {
-            App.showToast('⚠️ กรุณาแนบรูปภาพสลิป/หลักฐานการโอนเงิน (การชำระแบบโอนเงินจำเป็นต้องแนบรูปหลักฐาน)', 'warning');
+          // STRICT MANDATORY PROOF VALIDATION FOR ALL NON-CASH METHODS (TRANSFER, CHEQUE, ETC.)
+          if (type !== 'CASH' && !this.proofDataUrl) {
+            App.showToast('⚠️ กรุณาแนบรูปภาพหลักฐานการชำระเงิน (การชำระทุกรูปแบบยกเว้นเงินสด ต้องมีหลักฐานการโอน/เช็คแนบเสมอ)', 'warning');
             const dropzone = document.getElementById('proofDropzone');
             if (dropzone) {
               dropzone.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -13484,6 +13482,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               '<div style="font-weight: 700; color: #60a5fa; font-size: 13px;">รายการโอนเงินผ่านระบบธนาคาร</div>' +
               '<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">ธนาคาร: <strong>' + (slip?.bank || slip?.receiver_bank || '-') + '</strong> • วันที่โอน: ' + (slip?.transfer_date || slip?.datetime || '-') + '</div>' +
               (slip?.ref_no ? '<div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">เลขอ้างอิง: <strong class="font-mono text-cyan">' + slip.ref_no + '</strong></div>' : '') +
+              '<div style="margin-top: 12px;">' +
+              '<label class="btn btn-cyan" style="padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(6, 182, 212, 0.35);">' +
+              '<span>📷 แนบรูปสลิป / หลักฐานการโอนย้อนหลัง</span>' +
+              '<input type="file" accept="image/*" style="display: none;" onchange="SlipInspectModal.attachProofToCurrent(this.files[0])">' +
+              '</label>' +
+              '</div>' +
               '</div>' +
               '<img id="slipInspectMainImg" src="" alt="Payment Proof" style="display: none; width: 100%; border-radius: 6px; margin-bottom: 10px; cursor: pointer;" onclick="LightboxModal.open(this.src, \'หลักฐานการชำระเงิน #' + inv.iv_number + '\')">';
           } else {
@@ -13747,6 +13751,67 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           return { [p]: slip.highlighted_page_url || slip.original_file_url };
         }
         return null;
+      },
+
+      async attachProofToCurrent(file) {
+        if (!file) return;
+        const inv = App.state.invoices.find(i => i.id === this.currentInvId);
+        if (!inv) return;
+
+        App.showToast('กำลังประมวลผลและอัปโหลดรูปหลักฐานการโอน...', 'info');
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          let dataUrl = e.target.result;
+          if (typeof PaymentModal !== 'undefined' && PaymentModal.compressImage) {
+            dataUrl = await PaymentModal.compressImage(dataUrl, 1200, 0.82);
+          }
+
+          inv.slip_data = inv.slip_data || {};
+          inv.slip_data.proof_data_url = dataUrl;
+          inv.slip_data.has_proof = true;
+          inv.updated_at = new Date().toISOString();
+
+          // Find linked payment and update it
+          const payId = inv.slip_data.payment_id;
+          let linkedPay = null;
+          if (payId) {
+            linkedPay = (App.state.payments || []).find(p => p.id === payId);
+          }
+          if (!linkedPay && Array.isArray(App.state.payments)) {
+            linkedPay = App.state.payments.find(p => p.matched_invoices && p.matched_invoices.includes(inv.iv_number));
+          }
+
+          if (linkedPay) {
+            linkedPay.slip_data = linkedPay.slip_data || {};
+            linkedPay.slip_data.proof_data_url = dataUrl;
+            linkedPay.updated_at = new Date().toISOString();
+          }
+
+          DataManager.save(App.state);
+
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.client) {
+            SupabaseSync.client.from('invoices').update({
+              slip_data: inv.slip_data,
+              updated_at: inv.updated_at
+            }).eq('id', inv.id).then(() => {});
+
+            if (linkedPay) {
+              SupabaseSync.client.from('payments').update({
+                slip_data: linkedPay.slip_data,
+                updated_at: linkedPay.updated_at
+              }).eq('id', linkedPay.id).then(() => {});
+            }
+          }
+
+          this.open(inv.id);
+          App.refreshAllViews();
+          if (typeof CeoFastApprovalModal !== 'undefined' && CeoFastApprovalModal.isOpen) {
+            CeoFastApprovalModal.render();
+          }
+          App.showToast('✓ แนบรูปหลักฐานการโอนเข้าบิล #' + inv.iv_number + ' เรียบร้อยแล้ว (ซิงค์ขึ้น Cloud ทันที)', 'success');
+        };
+        reader.readAsDataURL(file);
       },
 
       close() {
