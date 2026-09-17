@@ -4668,6 +4668,8 @@
         </div>
       </form>
     </div>
+  </div>
+
   <!-- ==========================================================================
        MODAL 12: CEO FAST APPROVAL & EXECUTIVE REVIEW MODAL (IPAD & IPHONE OPTIMIZED)
        ========================================================================== -->
@@ -12542,10 +12544,6 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
       filterQuery: '',
 
       open() {
-        if (App.state.currentUserRole !== 'CEO') {
-          AuthModal.open('CEO');
-          return;
-        }
         const modal = document.getElementById('ceoFastApprovalModal');
         if (modal) {
           modal.classList.add('active');
@@ -12554,6 +12552,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           const searchInput = document.getElementById('fastFilterSearch');
           if (searchInput) searchInput.value = '';
           this.render();
+        } else {
+          console.error('CeoFastApprovalModal: #ceoFastApprovalModal not found in DOM');
         }
       },
 
