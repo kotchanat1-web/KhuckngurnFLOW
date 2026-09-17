@@ -5197,6 +5197,8 @@ END $$;
       pendingPushState: null,
       lastSyncTime: null,
       listenersAttached: false,
+      sessionId: 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
+      isPushingOwnChanges: false,
 
       init() {
         const url = localStorage.getItem('khuckngurn_supabase_url') || SUPABASE_DEFAULT_CONFIG.url || '';
@@ -5215,6 +5217,20 @@ END $$;
           window.addEventListener('offline', () => {
             console.warn('Browser offline');
             this.updateStatusBadge('offline', 'ออฟไลน์ (ไม่มีเน็ต)');
+          });
+          // Mobile & iPad lifecycle listener (auto-save before sleep & pull on wakeup)
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+              if (typeof DataManager !== 'undefined' && DataManager.hasPendingChanges) {
+                console.log('📱 Visibility hidden: flushing pending changes to Supabase Cloud...');
+                this.flushPendingPush();
+              }
+            } else if (document.visibilityState === 'visible') {
+              console.log('📱 Visibility visible: checking connection & pulling fresh cloud state...');
+              if (this.client) {
+                this.testAndConnect(false);
+              }
+            }
           });
           window.addEventListener('beforeunload', (e) => {
             if (typeof DataManager !== 'undefined' && DataManager.hasPendingChanges && DataManager.pendingChangeCount > 0) {
@@ -5701,7 +5717,17 @@ END $$;
 
               DataManager.ensureDataIntegrity(App.state);
               DataManager.saveLocalOnly(App.state);
-              App.refreshAllViews();
+
+              // UI GUARD: Check if user is actively interacting with an input or modal is open
+              const hasActiveModal = !!document.querySelector('.modal.active');
+              const hasActiveInput = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+
+              if (hasActiveModal || hasActiveInput) {
+                if (typeof App.updateSidebarBadges === 'function') App.updateSidebarBadges();
+                console.log('⚡ Deferred full view refresh to preserve active user input / open modal.');
+              } else {
+                App.refreshAllViews();
+              }
 
               if (showToast) {
                 App.showToast(`📥 ดึงข้อมูลล่าสุดจาก Cloud สำเร็จ (${App.state.invoices?.length || 0} บิล, ${App.state.payments?.length || 0} ยอดรับชำระ)`, 'success');
@@ -5731,6 +5757,7 @@ END $$;
         }
 
         this.isSyncing = true;
+        this.isPushingOwnChanges = true;
         this.updateStatusBadge('syncing', 'กำลังบันทึกข้อมูลขึ้น Cloud...');
 
         const saveBtn = document.getElementById('btnHeaderPushCloud');
@@ -5768,6 +5795,13 @@ END $$;
                 const key = rpay.id || rpay.payment_number;
                 if (!localPayMap.has(key)) {
                   App.state.payments.push(rpay);
+                } else {
+                  const localP = localPayMap.get(key);
+                  const rPTime = new Date(rpay.updated_at || '1970-01-01').getTime();
+                  const lPTime = new Date(localP.updated_at || '1970-01-01').getTime();
+                  if (rPTime > lPTime) {
+                    Object.assign(localP, rpay);
+                  }
                 }
               });
             }
@@ -5795,6 +5829,7 @@ END $$;
               staffPin: cleanState.staffPin || '1234',
               salespersons: cleanState.salespersons || [],
               audit_logs: cleanState.audit_logs || [],
+              last_updated_by: this.sessionId,
               updated_at: nowIso
             },
             updated_at: nowIso
@@ -5928,6 +5963,9 @@ END $$;
           if (!silent) App.showToast('เกิดข้อผิดพลาดในการบันทึกขึ้น Cloud: ' + (err.message || 'โปรดตรวจสอบสัญญาณเน็ต'), 'error');
         } finally {
           if (saveBtn) saveBtn.style.opacity = '1';
+          setTimeout(() => {
+            this.isPushingOwnChanges = false;
+          }, 1500);
         }
       },
 
@@ -5939,7 +5977,12 @@ END $$;
       debouncedPush(state, immediate = false) {
         if (immediate) {
           this.pushAllDataSecure(true);
+          return;
         }
+        if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
+        this.syncDebounceTimer = setTimeout(() => {
+          this.pushAllDataSecure(true);
+        }, 800);
       },
 
       flushPendingPush() {
@@ -5967,14 +6010,25 @@ END $$;
           this.realtimeChannel = this.client.channel('khuckngurn-flow-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state_backup' }, (payload) => {
               console.log('⚡ Realtime update event from Cloud (app_state_backup):', payload);
+              if (this.isPushingOwnChanges) {
+                console.log('⚡ Skipping echo: own push in-flight');
+                return;
+              }
+              const sender = payload.new?.state_data?.last_updated_by;
+              if (sender && sender === this.sessionId) {
+                console.log('⚡ Skipping echo from own session:', this.sessionId);
+                return;
+              }
               this.debouncedPull(false);
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
               console.log('⚡ Realtime invoice change:', payload);
+              if (this.isPushingOwnChanges) return;
               this.debouncedPull(false);
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, (payload) => {
               console.log('⚡ Realtime payment change:', payload);
+              if (this.isPushingOwnChanges) return;
               this.debouncedPull(false);
             })
             .subscribe((status) => {
@@ -8950,6 +9004,7 @@ END $$;
               } else {
                 inv.status = 'PARTIAL';
               }
+              inv.updated_at = new Date().toISOString();
 
               matchedIvNumbers.push(inv.iv_number);
               totalSavedAmount = DataManager.round2(totalSavedAmount + payAmt);
@@ -9022,6 +9077,9 @@ END $$;
           }
 
           DataManager.save(App.state);
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+            SupabaseSync.debouncedPush(App.state, true);
+          }
           this.close();
           OCRApp.renderStatementResult(OCRApp.extractedData);
           App.refreshAllViews();
@@ -12169,6 +12227,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           inv.status = 'PAID';
           inv.approved_by = 'คุณศุภรัตน์ (CEO)';
           inv.approved_at = App.getLocalDateTimeStr();
+          inv.updated_at = new Date().toISOString();
         });
 
         App.state.audit_logs.unshift({
@@ -12182,6 +12241,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         });
 
         DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
         App.refreshAllViews();
         App.showToast(`CEO อนุมัติปิดบิลสมบูรณ์ทั้งหมด ${waiting.length} บิล เรียบร้อยแล้ว`, 'success');
       }
@@ -12805,6 +12867,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         inv.status = 'PAID';
         inv.approved_by = 'คุณศุภรัตน์ (CEO)';
         inv.approved_at = App.getLocalDateTimeStr();
+        inv.updated_at = new Date().toISOString();
 
         App.state.audit_logs.unshift({
           id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
@@ -12819,6 +12882,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         });
 
         DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
         App.refreshAllViews();
         this.close();
         App.showToast(isTransferred ? `CEO อนุมัติประเมินการส่งต่อบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว` : `อนุมัติปิดบิล #${inv.iv_number} สมบูรณ์เรียบร้อยแล้ว`, 'success');
@@ -13527,7 +13593,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           detail: `ย้ายบิล #${inv.iv_number} เป็นสินค้ากลับร้าน/ส่งต่อให้ ${destinationSummaries.length} ร้าน [${destinationSummaries.map(d => d.customer_name + ' ฿' + App.formatCurrency(d.allocated_amount)).join(', ')}] หมายเหตุ: ${reason}`
         });
 
+        inv.updated_at = new Date().toISOString();
         DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
         this.close();
         App.refreshAllViews();
 
@@ -13630,7 +13700,11 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           detail: `Admin แก้ไขข้อมูลบิล ${oldIvNumber} -> ยอดรวม ${App.formatCurrency(total)}, ชำระ ${App.formatCurrency(paid)}, สถานะ ${inv.status}${newNotes ? ' [หมายเหตุ: ' + newNotes + ']' : ''}`
         });
 
+        inv.updated_at = new Date().toISOString();
         DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
         this.close();
         App.refreshAllViews();
         App.showToast(`บันทึกการแก้ไขบิล #${inv.iv_number} สำเร็จ`, 'success');
