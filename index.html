@@ -1405,6 +1405,177 @@
       flex-wrap: wrap;
     }
 
+    /* ==========================================================================
+       CEO FAST APPROVAL MODAL (EXECUTIVE FAST-REVIEW MODE FOR IPAD / IPHONE / PC)
+       ========================================================================== */
+    .ceo-fast-dialog {
+      max-width: 1120px;
+      width: 95vw;
+      height: 90vh;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, #101726 0%, #0c121e 100%);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(245, 158, 11, 0.15);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .ceo-fast-header {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(16, 185, 129, 0.1) 100%);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .ceo-kpi-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 12px 18px;
+      background: rgba(15, 23, 42, 0.65);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .ceo-kpi-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ceo-kpi-card .kpi-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .ceo-kpi-card .kpi-val {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .ceo-fast-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+    }
+
+    .ceo-slip-thumb {
+      width: 55px;
+      height: 68px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #000;
+    }
+
+    .ceo-slip-thumb:hover {
+      transform: scale(1.08);
+      border-color: #fbbf24;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+    }
+
+    .ceo-fast-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .ceo-fast-table th {
+      background: rgba(15, 23, 42, 0.85);
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .ceo-fast-table td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }
+
+    .ceo-fast-table tr:hover td {
+      background: rgba(245, 158, 11, 0.04);
+    }
+
+    .fast-items-drawer {
+      display: none;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px dashed rgba(245, 158, 11, 0.35);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 8px;
+    }
+
+    .fast-items-drawer.open {
+      display: block;
+      animation: fadeIn 0.2s ease;
+    }
+
+    /* Mobile / iPhone View (< 768px) */
+    @media (max-width: 768px) {
+      .ceo-fast-dialog {
+        width: 98vw;
+        height: 96vh;
+        max-height: 96vh;
+        border-radius: 12px;
+      }
+      .ceo-kpi-bar {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 8px 10px;
+      }
+      .ceo-fast-table-view {
+        display: none;
+      }
+      .ceo-mobile-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .ceo-mobile-card {
+        background: rgba(23, 33, 54, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      }
+      .ceo-mobile-card.transferred {
+        border-left: 4px solid #c084fc;
+      }
+      .ceo-mobile-card.waiting {
+        border-left: 4px solid #10b981;
+      }
+    }
+
+    /* Desktop/Tablet fallback for mobile card list */
+    @media (min-width: 769px) {
+      .ceo-mobile-card-list {
+        display: none;
+      }
+    }
+
     /* Statement Multi-IV Match 2-Line Bill Selector Styles */
     .stmt-bill-card {
       background: var(--bg-surface);
@@ -2201,6 +2372,12 @@
       </div>
 
       <div class="header-right">
+        <!-- CEO Fast Review Trigger Button -->
+        <button type="button" class="btn btn-primary" id="btnHeaderCeoFastReview" onclick="CeoFastApprovalModal.open()" title="โหมดตรวจและอนุมัติบิลด่วนสำหรับผู้บริหาร (CEO Fast Approval)" style="padding: 5px 14px; font-size: 11.5px; display: flex; align-items: center; gap: 6px; border-radius: 20px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); border: 1px solid #fbbf24; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35); transition: all 0.2s ease;">
+          <span style="font-size: 13px;">👑</span> <span>ตรวจงานด่วน CEO</span>
+          <span id="headerCeoWaitingBadge" style="display: none; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; border-radius: 10px; padding: 1px 6px; margin-left: 2px;">0</span>
+        </button>
+
         <!-- Cloud Pull & Save Action Controls -->
         <div class="header-cloud-actions" style="display: flex; align-items: center; gap: 8px;">
           <!-- 1. Pull Latest from Cloud (เริ่มใช้งานกดดึงข้อมูล) -->
@@ -2448,6 +2625,9 @@
               </p>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-primary" onclick="CeoFastApprovalModal.open()" style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); border-color: #fbbf24; box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35); font-weight: 700;" title="เปิดหน้าต่างโหมดตรวจงานด่วน CEO สไตล์ใบสรุป ดูสลิป คลี่ดูบิล และอนุมัติเร็ว">
+                <span>👑 โหมดตรวจงานด่วน CEO (หน้าเดียว)</span>
+              </button>
               <button class="btn btn-secondary" onclick="InvoiceDocModal.printCurrentTable('approvalTableBody', 'รายงานตรวจสอบยอดหนี้คงค้างและอนุมัติบิล (CEO)')" title="พิมพ์รายงานหนี้ค้างสำหรับผู้บริหาร">
                 <span>🖨️ พิมพ์รายงานหนี้ค้าง (A4)</span>
               </button>
@@ -4487,6 +4667,102 @@
           </button>
         </div>
       </form>
+    </div>
+  <!-- ==========================================================================
+       MODAL 12: CEO FAST APPROVAL & EXECUTIVE REVIEW MODAL (IPAD & IPHONE OPTIMIZED)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="ceoFastApprovalModal" style="z-index: 210;">
+    <div class="modal-dialog ceo-fast-dialog">
+      <!-- Modal Header -->
+      <div class="ceo-fast-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">👑</span>
+          <div>
+            <div class="modal-title" style="font-size: 16px; font-weight: 800; color: #fbbf24; display: flex; align-items: center; gap: 8px;">
+              <span>ศูนย์ตรวจและอนุมัติบิลด่วนสำหรับผู้บริหาร</span>
+              <span class="badge font-mono" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 11px; padding: 2px 7px;">CEO EXECUTIVE</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              ตรวจสลิปโอนเงิน ดูรายละเอียดบิล Express และอนุมัติปิดบิลซิงค์ขึ้น Cloud ทันที
+            </div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="CeoFastApprovalModal.close()" style="font-size: 18px; width: 34px; height: 34px;">✕</button>
+      </div>
+
+      <!-- Executive KPI Summary Bar -->
+      <div class="ceo-kpi-bar" id="ceoFastKpiBar">
+        <div class="ceo-kpi-card" style="border-left: 3px solid #f59e0b;">
+          <div class="kpi-label">⏳ บิลรอตรวจวันนี้</div>
+          <div class="kpi-val" style="color: #fbbf24;"><span id="fastWaitingCount">0</span> <span style="font-size: 12px; font-weight: normal; color: var(--text-muted);">บิล</span></div>
+        </div>
+        <div class="ceo-kpi-card" style="border-left: 3px solid #10b981;">
+          <div class="kpi-label">💰 ยอดรับชำระรวม</div>
+          <div class="kpi-val" style="color: #34d399;" id="fastWaitingTotal">฿0.00</div>
+        </div>
+        <div class="ceo-kpi-card" style="border-left: 3px solid #3b82f6;">
+          <div class="kpi-label">💵 รับเป็นเงินสด</div>
+          <div class="kpi-val" style="color: #60a5fa;" id="fastWaitingCash">฿0.00</div>
+        </div>
+        <div class="ceo-kpi-card" style="border-left: 3px solid #c084fc;">
+          <div class="kpi-label">📱 โอนผ่านธนาคาร + สลิป</div>
+          <div class="kpi-val" style="color: #c084fc;" id="fastWaitingTransfer">฿0.00</div>
+        </div>
+      </div>
+
+      <!-- Filter Controls Bar -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 18px; background: rgba(15, 23, 42, 0.4); border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 240px;">
+          <span style="font-size: 13px; color: var(--text-muted);">🔍</span>
+          <input type="text" id="fastFilterSearch" class="form-input" placeholder="ค้นหาชื่อร้านค้า, เลขบิล IV..." oninput="CeoFastApprovalModal.filter(this.value)" style="padding: 5px 10px; font-size: 12px; max-width: 320px; width: 100%;">
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+          <span>💡 แตะที่ภาพสลิปเพื่อดูรูปใหญ่ หรือแตะที่เลขบิลเพื่อดูรายการสินค้า</span>
+        </div>
+      </div>
+
+      <!-- Main Body (Table on Desktop/iPad, Cards on Mobile) -->
+      <div class="ceo-fast-body" id="ceoFastBody">
+        <!-- Content dynamically injected by CeoFastApprovalModal.render() -->
+      </div>
+
+      <!-- Sticky Modal Footer -->
+      <div class="modal-footer" style="background: rgba(15, 23, 42, 0.95); border-top: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="InvoiceDocModal.printCurrentTable('ceoFastApprovalTableBody', 'ใบสรุปยอดรับชำระเงินและตรวจสอบสลิปประจำวัน (CEO)')" style="padding: 7px 14px; font-size: 12px; font-weight: 600;">
+            <span>🖨️ พิมพ์ใบสรุป (A4)</span>
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="CeoFastApprovalModal.close()" style="padding: 7px 14px; font-size: 12px;">
+            <span>ปิดหน้าต่าง</span>
+          </button>
+          <button type="button" class="btn btn-primary" id="btnFastApproveAll" onclick="CeoFastApprovalModal.approveAll()" style="padding: 8px 18px; font-size: 13px; font-weight: 700; background: linear-gradient(135deg, #059669 0%, #10b981 100%); border: 1px solid #34d399; box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);">
+            <span>✓ อนุมัติทั้งหมดประจำวัน (CEO Approve All)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 13: CEO SLIP LIGHTBOX (FULL-SCREEN ZOOMABLE SLIP)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="ceoSlipZoomModal" style="z-index: 220; background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(8px);" onclick="if(event.target === this) CeoFastApprovalModal.closeSlipZoom()">
+    <div style="max-width: 600px; width: 94vw; max-height: 94vh; background: #0b0f19; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: var(--radius-lg); box-shadow: 0 20px 60px rgba(0,0,0,0.8); display: flex; flex-direction: column; overflow: hidden; animation: zoomIn 0.2s ease;">
+      <div style="padding: 12px 18px; background: rgba(15, 23, 42, 0.9); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-weight: 700; font-size: 14px; color: #fbbf24;" id="ceoSlipZoomTitle">
+          📱 หลักฐานสลิปการโอนเงิน
+        </div>
+        <button class="modal-close-btn" onclick="CeoFastApprovalModal.closeSlipZoom()" style="font-size: 18px;">✕</button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 12px; display: flex; justify-content: center; align-items: center; background: #050811;">
+        <img id="ceoSlipZoomImg" src="" alt="หลักฐานสลิป" style="max-width: 100%; max-height: 72vh; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); object-fit: contain;">
+      </div>
+      <div id="ceoSlipZoomMeta" style="padding: 10px 16px; background: rgba(15, 23, 42, 0.9); border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+        <span id="ceoSlipZoomBank">-</span>
+        <button type="button" class="btn btn-secondary" onclick="CeoFastApprovalModal.closeSlipZoom()" style="padding: 4px 12px; font-size: 11.5px;">ปิดรูปภาพ</button>
+      </div>
     </div>
   </div>
 
@@ -7908,6 +8184,9 @@ END $$;
         }
         this.updateCustomerDropdowns();
         this.updateSidebarBadges();
+        if (typeof CeoFastApprovalModal !== 'undefined' && CeoFastApprovalModal.isOpen) {
+          CeoFastApprovalModal.render();
+        }
       },
 
       updateCustomerDropdowns() {
@@ -7949,7 +8228,7 @@ END $$;
       },
 
       updateSidebarBadges() {
-        const waitingCount = this.state.invoices.filter(i => i.status === 'WAITING_APPROVAL').length;
+        const waitingCount = (this.state.invoices || []).filter(i => i.status === 'WAITING_APPROVAL' || i.status === 'TRANSFERRED').length;
         const badge = document.getElementById('sidebarWaitingCount');
         if (badge) badge.innerText = waitingCount;
 
@@ -7958,6 +8237,12 @@ END $$;
 
         const banner = document.getElementById('ceoApprovalBanner');
         if (banner) banner.style.display = waitingCount > 0 ? 'flex' : 'none';
+
+        const headerCeoBadge = document.getElementById('headerCeoWaitingBadge');
+        if (headerCeoBadge) {
+          headerCeoBadge.innerText = waitingCount;
+          headerCeoBadge.style.display = waitingCount > 0 ? 'inline-block' : 'none';
+        }
       },
 
       toggleTheme() {
@@ -12246,6 +12531,416 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         }
         App.refreshAllViews();
         App.showToast(`CEO อนุมัติปิดบิลสมบูรณ์ทั้งหมด ${waiting.length} บิล เรียบร้อยแล้ว`, 'success');
+      }
+    };
+
+    // ==========================================================================
+    // 14. CEO FAST APPROVAL MODAL CONTROLLER (IPAD & IPHONE EXECUTIVE VIEW)
+    // ==========================================================================
+    const CeoFastApprovalModal = {
+      isOpen: false,
+      filterQuery: '',
+
+      open() {
+        if (App.state.currentUserRole !== 'CEO') {
+          AuthModal.open('CEO');
+          return;
+        }
+        const modal = document.getElementById('ceoFastApprovalModal');
+        if (modal) {
+          modal.classList.add('active');
+          this.isOpen = true;
+          this.filterQuery = '';
+          const searchInput = document.getElementById('fastFilterSearch');
+          if (searchInput) searchInput.value = '';
+          this.render();
+        }
+      },
+
+      close() {
+        const modal = document.getElementById('ceoFastApprovalModal');
+        if (modal) {
+          modal.classList.remove('active');
+          this.isOpen = false;
+        }
+      },
+
+      filter(query) {
+        this.filterQuery = (query || '').toLowerCase().trim();
+        this.render();
+      },
+
+      toggleDrawer(invId) {
+        const drawer = document.getElementById(`fastDrawer_${invId}`);
+        const icon = document.getElementById(`drawerIcon_${invId}`);
+        if (drawer) {
+          drawer.classList.toggle('open');
+          if (icon) {
+            icon.innerText = drawer.classList.contains('open') ? '▲' : '▼';
+          }
+        }
+      },
+
+      openSlipZoom(imgUrl, title, metaHtml) {
+        const modal = document.getElementById('ceoSlipZoomModal');
+        const img = document.getElementById('ceoSlipZoomImg');
+        const titleEl = document.getElementById('ceoSlipZoomTitle');
+        const metaEl = document.getElementById('ceoSlipZoomBank');
+        if (!modal || !img) return;
+
+        img.src = imgUrl || '';
+        if (titleEl) titleEl.innerText = title || '📱 หลักฐานสลิปการโอนเงิน';
+        if (metaEl) metaEl.innerHTML = metaHtml || '-';
+        modal.classList.add('active');
+      },
+
+      closeSlipZoom() {
+        const modal = document.getElementById('ceoSlipZoomModal');
+        if (modal) modal.classList.remove('active');
+      },
+
+      approveSingle(invId) {
+        if (App.state.currentUserRole !== 'CEO') {
+          AuthModal.open('CEO');
+          return;
+        }
+
+        const inv = (App.state.invoices || []).find(i => i.id === invId);
+        if (!inv) return;
+
+        const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
+
+        inv.status = 'PAID';
+        inv.approved_by = 'คุณศุภรัตน์ (CEO)';
+        inv.approved_at = App.getLocalDateTimeStr();
+        inv.updated_at = new Date().toISOString();
+
+        App.state.audit_logs.unshift({
+          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          timestamp: App.getLocalDateTimeStr(),
+          user: 'คุณศุภรัตน์ (CEO)',
+          action: isTransferred ? 'CEO_TRANSFER_APPROVED' : 'CEO_APPROVED',
+          table_name: 'invoices',
+          record_id: inv.iv_number,
+          detail: isTransferred 
+            ? `CEO ตรวจสอบและอนุมัติประเมินการส่งต่อ/สินค้ากลับร้าน #${inv.iv_number} (${inv.transfer_data?.destinations?.length || 1} ร้าน) สำเร็จ`
+            : `CEO ตรวจสอบหลักฐานคู่บิลขาย ${inv.iv_number} และหลักฐานการชำระเงินสมบูรณ์ (โหมดตรวจงานด่วน)`
+        });
+
+        DataManager.save(App.state);
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+          SupabaseSync.debouncedPush(App.state, true);
+        }
+        App.refreshAllViews();
+        this.render();
+        App.showToast(`✓ อนุมัติบิล #${inv.iv_number} เรียบร้อยแล้ว (ซิงค์ขึ้น Cloud ทันที)`, 'success');
+      },
+
+      approveAll() {
+        if (App.state.currentUserRole !== 'CEO') {
+          AuthModal.open('CEO');
+          return;
+        }
+        ApprovalEngine.approveAll();
+        this.render();
+      },
+
+      render() {
+        const allInvoices = App.state.invoices || [];
+        const customers = App.state.customers || [];
+
+        // 1. Get waiting invoices
+        const waitingInvoices = allInvoices.filter(i => i.status === 'WAITING_APPROVAL' || i.status === 'TRANSFERRED');
+
+        // 2. Calculate KPI summary metrics
+        let totalAmt = 0;
+        let cashAmt = 0;
+        let transferAmt = 0;
+
+        waitingInvoices.forEach(inv => {
+          const amt = parseFloat(inv.paid_amount) || parseFloat(inv.total_amount) || 0;
+          totalAmt += amt;
+          const isCash = inv.slip_data?.type === 'CASH' || inv.payment_method === 'CASH';
+          if (isCash) cashAmt += amt;
+          else transferAmt += amt;
+        });
+
+        // Update KPI elements
+        const countEl = document.getElementById('fastWaitingCount');
+        const totalEl = document.getElementById('fastWaitingTotal');
+        const cashEl = document.getElementById('fastWaitingCash');
+        const transferEl = document.getElementById('fastWaitingTransfer');
+        if (countEl) countEl.innerText = waitingInvoices.length;
+        if (totalEl) totalEl.innerText = '฿' + App.formatCurrency(totalAmt);
+        if (cashEl) cashEl.innerText = '฿' + App.formatCurrency(cashAmt);
+        if (transferEl) transferEl.innerText = '฿' + App.formatCurrency(transferAmt);
+
+        // Update Header Badge
+        const headerBadge = document.getElementById('headerCeoWaitingBadge');
+        if (headerBadge) {
+          headerBadge.innerText = waitingInvoices.length;
+          headerBadge.style.display = waitingInvoices.length > 0 ? 'inline-block' : 'none';
+        }
+
+        // 3. Filter list
+        let filtered = waitingInvoices;
+        if (this.filterQuery) {
+          const q = this.filterQuery;
+          filtered = filtered.filter(inv => {
+            const cust = customers.find(c => c.id === inv.customer_id);
+            const custName = (cust?.name || '').toLowerCase();
+            const custCode = (cust?.code || '').toLowerCase();
+            const ivNum = (inv.iv_number || '').toLowerCase();
+            const veh = (inv.delivery_vehicle || '').toLowerCase();
+            const note = (inv.notes || inv.note || inv.payment_note || '').toLowerCase();
+            return custName.includes(q) || custCode.includes(q) || ivNum.includes(q) || veh.includes(q) || note.includes(q);
+          });
+        }
+
+        const bodyContainer = document.getElementById('ceoFastBody');
+        if (!bodyContainer) return;
+
+        if (filtered.length === 0) {
+          bodyContainer.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+              <div style="font-size: 54px; margin-bottom: 14px;">🎉</div>
+              <div style="font-size: 18px; font-weight: 700; color: #34d399; margin-bottom: 6px;">ยอดเยี่ยม! ไม่มีบิลรอตรวจอนุมัติในขณะนี้</div>
+              <div style="font-size: 13px; color: var(--text-secondary);">ทุกบิลขายและหลักฐานการโอนได้รับการตรวจสอบและซิงค์ขึ้นระบบ Cloud เรียบร้อยแล้ว</div>
+            </div>
+          `;
+          const btnApproveAll = document.getElementById('btnFastApproveAll');
+          if (btnApproveAll) btnApproveAll.disabled = true;
+          return;
+        }
+
+        const btnApproveAll = document.getElementById('btnFastApproveAll');
+        if (btnApproveAll) btnApproveAll.disabled = false;
+
+        // Helper to format proof display
+        const getProofInfo = (inv) => {
+          const slip = inv.slip_data;
+          const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
+
+          if (isTransferred) {
+            const destCount = inv.transfer_data?.destinations?.length || 1;
+            const destNames = (inv.transfer_data?.destinations || []).map(d => d.customer_name).join(', ');
+            return {
+              badge: `<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 11px;">🏬 สินค้ากลับร้าน (${destCount} ร้าน)</span>`,
+              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(168, 85, 247, 0.15); border: 1px dashed #c084fc; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="ส่งต่อให้: ${destNames}">🔄<span style="font-size: 9px; color: #c084fc; font-weight: 700; margin-top: 2px;">ส่งต่อ</span></div>`,
+              meta: `ส่งต่อไปยัง: ${destNames || '-'}`
+            };
+          }
+
+          if (!slip) {
+            return {
+              badge: `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 11px;">⚠️ ไม่มีสลิป</span>`,
+              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(30, 41, 59, 0.5); border: 1px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-muted);">ไม่มีรูป</div>`,
+              meta: '-'
+            };
+          }
+
+          const isCash = slip.type === 'CASH' || inv.payment_method === 'CASH';
+          if (isCash) {
+            return {
+              badge: `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px;">💵 ชำระเงินสด</span>`,
+              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 20px;">💵<span style="font-size: 9px; color: #34d399; font-weight: 700; margin-top: 2px;">เงินสด</span></div>`,
+              meta: 'ชำระด้วยเงินสด (พนักงานรับมอบเงินสดครบถ้วน)'
+            };
+          }
+
+          const isCheque = slip.type === 'CHEQUE';
+          if (isCheque) {
+            const slipImg = slip.proof_data_url || '';
+            return {
+              badge: `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 11px;">📑 เช็คธนาคาร</span>`,
+              thumbHtml: slipImg 
+                ? `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'เช็คธนาคาร #${inv.iv_number}', 'เช็ค: ${slip.bank || '-'} เลขที่: ${slip.ref_no || '-'}')" title="แตะเพื่อดูรูปเช็คขยายใหญ่">`
+                : `<div style="width: 55px; height: 68px; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px;">📑</div>`,
+              meta: `เช็คธนาคาร: ${slip.bank || '-'} เลขที่เช็ค: ${slip.ref_no || '-'}`
+            };
+          }
+
+          // Transfer Slip or Statement
+          const slipImg = slip.highlighted_page_url || slip.original_file_url || slip.proof_data_url || '';
+          const bankName = slip.bank || 'ธนาคารกสิกรไทย / พร้อมเพย์';
+          const refNo = slip.ref_no || slip.trans_ref || '';
+
+          return {
+            badge: `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); font-size: 11px;">📱 สลิปโอนเงิน</span>`,
+            thumbHtml: slipImg 
+              ? `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`
+              : `<div style="width: 55px; height: 68px; background: rgba(6, 182, 212, 0.15); border: 1px solid #06b6d4; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px;">📱</div>`,
+            meta: `ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}`
+          };
+        };
+
+        // Helper to render items inside drawer
+        const renderDrawerContent = (inv) => {
+          const items = (inv.items && inv.items.length > 0) ? inv.items : [
+            { no: 1, name: 'สินค้าตามบิลขาย Express (รายการรวม)', quantity: 1, unit: 'บิล', unit_price: inv.total_amount, total_price: inv.total_amount }
+          ];
+
+          const note = inv.notes || inv.note || inv.payment_note || inv.slip_data?.note || inv.transfer_data?.reason || '';
+
+          return `
+            <div style="font-size: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <div style="color: #fbbf24; font-weight: 700;">📦 รายการสินค้าในบิล Express (${items.length} รายการ)</div>
+              <div style="color: var(--text-muted);">สายรถ: <strong style="color: var(--text-primary);">${inv.delivery_vehicle || '-'}</strong> | พนักงาน: <strong style="color: var(--text-primary);">${inv.salesman_code || '-'}</strong></div>
+            </div>
+            <table style="width: 100%; font-size: 11.5px; border-collapse: collapse; margin-bottom: 8px;">
+              <thead>
+                <tr style="background: rgba(255,255,255,0.04); color: var(--text-muted); text-align: left;">
+                  <th style="padding: 4px 6px; width: 30px;">#</th>
+                  <th style="padding: 4px 6px;">ชื่อสินค้า</th>
+                  <th style="padding: 4px 6px; text-align: right; width: 60px;">จำนวน</th>
+                  <th style="padding: 4px 6px; width: 45px;">หน่วย</th>
+                  <th style="padding: 4px 6px; text-align: right; width: 80px;">ราคา/หน่วย</th>
+                  <th style="padding: 4px 6px; text-align: right; width: 90px;">รวมเงิน</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(it => `
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 4px 6px; color: var(--text-muted);">${it.no || 1}</td>
+                    <td style="padding: 4px 6px; font-weight: 500;">${it.name || '-'}</td>
+                    <td style="padding: 4px 6px; text-align: right;" class="font-mono">${it.quantity || 1}</td>
+                    <td style="padding: 4px 6px; color: var(--text-muted);">${it.unit || 'ชิ้น'}</td>
+                    <td style="padding: 4px 6px; text-align: right;" class="font-mono">${App.formatCurrency(it.unit_price)}</td>
+                    <td style="padding: 4px 6px; text-align: right; font-weight: 700; color: #34d399;" class="font-mono">${App.formatCurrency(it.total_price)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ${note ? `
+              <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; padding: 6px 10px; font-size: 11.5px; color: #fbbf24; display: flex; align-items: center; gap: 6px;">
+                <span>📝 <strong>บันทึกสรุปงานของลูกน้อง:</strong></span>
+                <span>${App.escapeHtml(note)}</span>
+              </div>
+            ` : ''}
+          `;
+        };
+
+        // Render Desktop / iPad Table
+        let tableRowsHtml = filtered.map((inv, idx) => {
+          const cust = customers.find(c => c.id === inv.customer_id) || { name: '-', code: '-' };
+          const proof = getProofInfo(inv);
+          const amt = parseFloat(inv.paid_amount) || parseFloat(inv.total_amount) || 0;
+          const note = inv.notes || inv.note || inv.payment_note || '';
+
+          return `
+            <tr>
+              <td style="text-align: center; width: 40px; color: var(--text-muted); font-size: 11px;">${idx + 1}</td>
+              <td style="text-align: center; width: 75px;">
+                ${proof.thumbHtml}
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="font-mono font-weight: 800" style="color: #60a5fa; cursor: pointer; text-decoration: underline;" onclick="CeoFastApprovalModal.toggleDrawer('${inv.id}')" title="แตะเพื่อคลี่ดูรายการสินค้าในบิล">
+                    #${inv.iv_number}
+                  </span>
+                  <button type="button" class="btn btn-secondary" style="padding: 1px 5px; font-size: 10px; border-radius: 4px;" onclick="CeoFastApprovalModal.toggleDrawer('${inv.id}')" title="คลี่ดูสินค้า">
+                    <span id="drawerIcon_${inv.id}">▼</span> สินค้า
+                  </button>
+                </div>
+                <div style="font-weight: 700; font-size: 13.5px; margin-top: 3px; color: var(--text-primary);">${cust.name}</div>
+                <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                  <span>รหัส: <span class="font-mono">${cust.code || '-'}</span></span>
+                  <span>🚛 รถ: <span style="color: var(--text-secondary);">${inv.delivery_vehicle || '-'}</span></span>
+                  <span>📅 ${inv.invoice_date || '-'}</span>
+                </div>
+                ${note ? `<div style="font-size: 11px; color: #fbbf24; margin-top: 3px;">📝 ${App.escapeHtml(note)}</div>` : ''}
+                <!-- Collapsible Items Drawer -->
+                <div class="fast-items-drawer" id="fastDrawer_${inv.id}">
+                  ${renderDrawerContent(inv)}
+                </div>
+              </td>
+              <td style="text-align: right; width: 130px;">
+                <div style="font-size: 15px; font-weight: 800; color: #34d399;" class="font-mono">฿${App.formatCurrency(amt)}</div>
+                <div style="margin-top: 4px;">${proof.badge}</div>
+              </td>
+              <td style="text-align: center; width: 140px;">
+                <button type="button" class="btn btn-primary" onclick="CeoFastApprovalModal.approveSingle('${inv.id}')" style="padding: 7px 14px; font-size: 12.5px; font-weight: 700; width: 100%; justify-content: center; background: linear-gradient(135deg, #059669 0%, #10b981 100%); border: 1px solid #34d399; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);">
+                  <span>✓ อนุมัติ</span>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        // Render iPhone Cards
+        let mobileCardsHtml = filtered.map((inv, idx) => {
+          const cust = customers.find(c => c.id === inv.customer_id) || { name: '-', code: '-' };
+          const proof = getProofInfo(inv);
+          const amt = parseFloat(inv.paid_amount) || parseFloat(inv.total_amount) || 0;
+          const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
+
+          return `
+            <div class="ceo-mobile-card ${isTransferred ? 'transferred' : 'waiting'}">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  ${proof.thumbHtml}
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span class="font-mono font-weight: 800" style="color: #60a5fa; font-size: 14px;" onclick="CeoFastApprovalModal.toggleDrawer('m_${inv.id}')">
+                        #${inv.iv_number}
+                      </span>
+                      ${proof.badge}
+                    </div>
+                    <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-top: 2px;">${cust.name}</div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                      🚛 ${inv.delivery_vehicle || '-'} | 📅 ${inv.invoice_date || '-'}
+                    </div>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 16px; font-weight: 800; color: #34d399;" class="font-mono">฿${App.formatCurrency(amt)}</div>
+                </div>
+              </div>
+
+              <!-- Button to Expand Details -->
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-secondary" style="flex: 1; padding: 6px 10px; font-size: 11.5px; justify-content: center;" onclick="CeoFastApprovalModal.toggleDrawer('m_${inv.id}')">
+                  <span id="drawerIcon_m_${inv.id}">▼</span> ดูรายละเอียดสินค้า & โน้ตบิล
+                </button>
+              </div>
+
+              <!-- Collapsible Mobile Drawer -->
+              <div class="fast-items-drawer" id="fastDrawer_m_${inv.id}">
+                ${renderDrawerContent(inv)}
+              </div>
+
+              <!-- 1-Tap Full Width Approve Button -->
+              <button type="button" class="btn btn-primary" onclick="CeoFastApprovalModal.approveSingle('${inv.id}')" style="width: 100%; height: 44px; font-size: 14px; font-weight: 700; justify-content: center; background: linear-gradient(135deg, #059669 0%, #10b981 100%); border: 1px solid #34d399; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">
+                <span>✓ อนุมัติบิลนี้</span>
+              </button>
+            </div>
+          `;
+        }).join('');
+
+        bodyContainer.innerHTML = `
+          <!-- Desktop / iPad Table View -->
+          <div class="ceo-fast-table-view">
+            <table class="ceo-fast-table">
+              <thead>
+                <tr>
+                  <th style="text-align: center;">ลำดับ</th>
+                  <th style="text-align: center;">หลักฐาน</th>
+                  <th>รายละเอียดบิล & ร้านค้า (แตะเลขที่บิลเพื่อดูสินค้า)</th>
+                  <th style="text-align: right;">ยอดเงินที่ชำระ</th>
+                  <th style="text-align: center;">การอนุมัติ</th>
+                </tr>
+              </thead>
+              <tbody id="ceoFastApprovalTableBody">
+                ${tableRowsHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- iPhone Mobile Cards View -->
+          <div class="ceo-mobile-card-list">
+            ${mobileCardsHtml}
+          </div>
+        `;
       }
     };
 
