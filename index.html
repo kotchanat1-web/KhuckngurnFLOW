@@ -5820,10 +5820,9 @@ END $$;
                 if (inv.slip_data.original_file_url && inv.slip_data.original_file_url.length > 200000) {
                   inv.slip_data.original_file_url = null;
                 }
-                // Don't duplicate full proof image in invoice snapshot if it's already in payment
-                if (inv.slip_data.proof_data_url && inv.slip_data.proof_data_url.length > 60000) {
+                // Keep real proof images completely safe in invoice snapshot
+                if (inv.slip_data.proof_data_url) {
                   inv.slip_data.has_proof = true;
-                  inv.slip_data.proof_data_url = null;
                 }
               }
             });
@@ -5984,6 +5983,36 @@ END $$;
               if (cloudState.adminPin) App.state.adminPin = cloudState.adminPin;
               if (cloudState.ceoPin) App.state.ceoPin = cloudState.ceoPin;
               if (cloudState.staffPin) App.state.staffPin = cloudState.staffPin;
+
+              // 7. Hydrate real payment slips directly from 'payments' table to guarantee no slip is missed
+              try {
+                const { data: dbPays } = await this.client.from('payments').select('id, payment_number, payment_type, slip_data, matched_invoices').not('slip_data', 'is', null);
+                if (Array.isArray(dbPays)) {
+                  dbPays.forEach(dp => {
+                    if (dp.slip_data?.proof_data_url) {
+                      let p = App.state.payments.find(x => x.id === dp.id || x.payment_number === dp.payment_number);
+                      if (p) {
+                        p.slip_data = p.slip_data || {};
+                        p.slip_data.proof_data_url = dp.slip_data.proof_data_url;
+                      } else {
+                        App.state.payments.push(dp);
+                      }
+                      (dp.matched_invoices || []).forEach(ivNum => {
+                        const inv = App.state.invoices.find(i => i.iv_number === ivNum);
+                        if (inv) {
+                          inv.slip_data = inv.slip_data || {};
+                          inv.slip_data.proof_data_url = dp.slip_data.proof_data_url;
+                          if (!inv.slip_data.bank && dp.slip_data.bank) inv.slip_data.bank = dp.slip_data.bank;
+                          if (!inv.slip_data.ref_no && dp.slip_data.ref_no) inv.slip_data.ref_no = dp.slip_data.ref_no;
+                          if (!inv.slip_data.payment_id) inv.slip_data.payment_id = dp.id;
+                        }
+                      });
+                    }
+                  });
+                }
+              } catch (pErr) {
+                console.warn('Enrich payments from DB note:', pErr);
+              }
 
               // Update pending changes tracking accurately
               if (localHasUnsyncedEdits && unsyncedCount > 0) {
@@ -8071,6 +8100,117 @@ END $$;
           pairedInvoices,
           totalPaymentAmount
         };
+      },
+
+      resolveProofInfo(inv) {
+        if (!inv) return null;
+        let slip = inv.slip_data ? { ...inv.slip_data } : null;
+
+        // 1. If invoice already has real proof image, return it
+        if (slip && (slip.proof_data_url || slip.highlighted_page_url || slip.original_file_url)) {
+          return slip;
+        }
+
+        // 2. Lookup linked payment in App.state.payments
+        const payments = this.state.payments || [];
+        let linkedPay = null;
+
+        if (slip?.payment_id) {
+          linkedPay = payments.find(p => p.id === slip.payment_id);
+        }
+        if (!linkedPay && Array.isArray(this.state.payment_allocations)) {
+          const alloc = this.state.payment_allocations.find(a => a.invoice_id === inv.id);
+          if (alloc) {
+            linkedPay = payments.find(p => p.id === alloc.payment_id);
+          }
+        }
+        if (!linkedPay) {
+          linkedPay = payments.find(p => p.matched_invoices && p.matched_invoices.includes(inv.iv_number));
+        }
+
+        if (linkedPay && linkedPay.slip_data) {
+          if (!slip) slip = { ...linkedPay.slip_data };
+          else {
+            if (!slip.proof_data_url && linkedPay.slip_data.proof_data_url) {
+              slip.proof_data_url = linkedPay.slip_data.proof_data_url;
+            }
+            if (!slip.bank && linkedPay.slip_data.bank) slip.bank = linkedPay.slip_data.bank;
+            if (!slip.ref_no && linkedPay.slip_data.ref_no) slip.ref_no = linkedPay.slip_data.ref_no;
+            if (!slip.type && linkedPay.slip_data.type) slip.type = linkedPay.slip_data.type;
+            if (!slip.payment_id) slip.payment_id = linkedPay.id;
+          }
+        }
+
+        if (slip && slip.proof_data_url && (!inv.slip_data || !inv.slip_data.proof_data_url)) {
+          inv.slip_data = slip;
+        }
+
+        return slip;
+      },
+
+      async fetchSlipOnDemand(invId, elementId) {
+        if (!invId) return null;
+        const inv = (this.state.invoices || []).find(i => i.id === invId);
+        if (!inv) return null;
+
+        // If invoice already has proof image, render to element if needed and return
+        if (inv.slip_data?.proof_data_url) {
+          if (elementId) {
+            const el = document.getElementById(elementId);
+            if (el && !el.querySelector('img')) {
+              el.innerHTML = `<img src="${inv.slip_data.proof_data_url}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${inv.slip_data.proof_data_url}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${inv.slip_data.bank || '-'} | อ้างอิง: ${inv.slip_data.ref_no || '-'}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`;
+            }
+          }
+          return inv.slip_data.proof_data_url;
+        }
+
+        // Check if SupabaseSync is available
+        if (typeof SupabaseSync === 'undefined' || !SupabaseSync.client) return null;
+
+        try {
+          let payData = null;
+          const payId = inv.slip_data?.payment_id;
+
+          if (payId) {
+            const res = await SupabaseSync.client.from('payments').select('id, payment_number, payment_type, slip_data, matched_invoices').eq('id', payId).maybeSingle();
+            if (res.data?.slip_data?.proof_data_url) payData = res.data;
+          }
+
+          if (!payData && inv.iv_number) {
+            const res = await SupabaseSync.client.from('payments').select('id, payment_number, payment_type, slip_data, matched_invoices').contains('matched_invoices', [inv.iv_number]).limit(1);
+            if (res.data && res.data[0]?.slip_data?.proof_data_url) payData = res.data[0];
+          }
+
+          if (payData && payData.slip_data && payData.slip_data.proof_data_url) {
+            const proofUrl = payData.slip_data.proof_data_url;
+            inv.slip_data = inv.slip_data || {};
+            inv.slip_data.proof_data_url = proofUrl;
+            if (!inv.slip_data.bank && payData.slip_data.bank) inv.slip_data.bank = payData.slip_data.bank;
+            if (!inv.slip_data.ref_no && payData.slip_data.ref_no) inv.slip_data.ref_no = payData.slip_data.ref_no;
+            if (!inv.slip_data.payment_id) inv.slip_data.payment_id = payData.id;
+
+            // Update in-memory payments
+            let localPay = (this.state.payments || []).find(p => p.id === payData.id);
+            if (localPay) {
+              localPay.slip_data = localPay.slip_data || {};
+              localPay.slip_data.proof_data_url = proofUrl;
+            } else {
+              this.state.payments.push(payData);
+            }
+
+            // Update DOM element if specified
+            if (elementId) {
+              const el = document.getElementById(elementId);
+              if (el) {
+                el.innerHTML = `<img src="${proofUrl}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${proofUrl}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${inv.slip_data.bank || '-'} | อ้างอิง: ${inv.slip_data.ref_no || '-'}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`;
+              }
+            }
+            return proofUrl;
+          }
+        } catch (e) {
+          console.warn('On-demand slip fetch note for', inv.iv_number, e);
+        }
+        return null;
       },
 
       updateUserRoleUI() {
@@ -12409,28 +12549,33 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           else if (inv.status === 'PARTIAL') statusBadge = '<span class="badge badge-partial">🟡 ชำระบางส่วน</span>';
 
           // Slip / Proof Badge representation
-          let proofHtml = '<span style="font-size: 11.5px; color: var(--text-muted);">🔴 ยังไม่มีสลิป</span>';
-          const slip = inv.slip_data;
+          const slip = App.resolveProofInfo(inv);
           const bundleInfo = App.getBundledInvoicesFor(inv);
+          let proofHtml = '';
 
-          if (inv.status === 'TRANSFERRED' || inv.transfer_data) {
+          const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
+          const isCash = (slip && slip.type === 'CASH') || inv.payment_method === 'CASH' || (inv.notes && inv.notes.includes('เงินสด'));
+          const isStatement = slip && (slip.type === 'STATEMENT' || (slip.ref_no && (slip.ref_no.includes('STEL') || slip.ref_no.includes('ST20'))) || !!slip.original_file_url);
+          const isCheque = slip && slip.type === 'CHEQUE';
+
+          if (isTransferred) {
             const destCount = inv.transfer_data?.destinations?.length || 1;
             proofHtml = `<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 11px; padding: 3px 7px;">🏬 สินค้ากลับร้าน (${destCount} รายการ)</span>`;
-          } else if (slip) {
-            const isStatement = slip.type === 'STATEMENT' || !!slip.original_file_url;
-            const pageNum = slip.page_number || slip.crop_info?.pageNumber || 1;
-            const isCheque = slip.type === 'CHEQUE';
-            const isCash = slip.type === 'CASH';
-
-            if (isStatement) {
-              proofHtml = `<span class="badge badge-secondary" style="font-size: 11px; padding: 3px 7px;">🏦 Statement (น.${pageNum})</span>`;
-            } else if (isCheque) {
-              proofHtml = `<span class="badge badge-cheque" style="font-size: 11px; padding: 3px 7px;">📑 เช็คธนาคาร</span>`;
-            } else if (isCash) {
-              proofHtml = `<span class="badge badge-cash" style="font-size: 11px; padding: 3px 7px;">💵 เงินสด</span>`;
-            } else if (slip.proof_data_url) {
-              proofHtml = `<span class="badge badge-paid" style="font-size: 11px; padding: 3px 7px;">📱 สลิปโอนเงิน</span>`;
-            }
+          } else if (isCash) {
+            proofHtml = `<span class="badge badge-cash" style="font-size: 11px; padding: 3px 7px;">💵 เงินสด</span>`;
+          } else if (isStatement) {
+            proofHtml = `<span class="badge badge-secondary" style="font-size: 11px; padding: 3px 7px;">🏦 Statement (SCB)</span>`;
+          } else if (isCheque) {
+            proofHtml = `<span class="badge badge-cheque" style="font-size: 11px; padding: 3px 7px;">📑 เช็คธนาคาร</span>`;
+          } else if (slip && (slip.proof_data_url || slip.highlighted_page_url)) {
+            proofHtml = `<span class="badge badge-paid" style="font-size: 11px; padding: 3px 7px;">📱 สลิปโอนเงิน</span>`;
+          } else if (slip && (slip.bank || slip.ref_no || slip.type === 'TRANSFER')) {
+            const bName = slip.bank ? slip.bank.split(' ')[0] : 'ธนาคาร';
+            proofHtml = `<span class="badge" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.35); font-size: 11px; padding: 3px 7px;">📱 โอน (${App.escapeHtml(bName)})</span>`;
+          } else if (inv.status === 'WAITING_APPROVAL') {
+            proofHtml = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 11px; padding: 3px 7px;">⏳ รอตรวจ</span>`;
+          } else {
+            proofHtml = '<span style="font-size: 11.5px; color: var(--text-muted);">🔴 ค้างชำระ</span>';
           }
 
           if (bundleInfo.isBundled) {
@@ -12552,6 +12697,44 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           const searchInput = document.getElementById('fastFilterSearch');
           if (searchInput) searchInput.value = '';
           this.render();
+
+          // Background hydrate slips from Cloud payments table to make sure all images appear immediately
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.client) {
+            SupabaseSync.client.from('payments').select('id, payment_number, payment_type, slip_data, matched_invoices').not('slip_data', 'is', null).then(res => {
+              if (Array.isArray(res.data) && res.data.length > 0) {
+                let updated = false;
+                res.data.forEach(dp => {
+                  if (dp.slip_data?.proof_data_url) {
+                    let p = App.state.payments.find(x => x.id === dp.id || x.payment_number === dp.payment_number);
+                    if (p) {
+                      if (!p.slip_data?.proof_data_url) {
+                        p.slip_data = p.slip_data || {};
+                        p.slip_data.proof_data_url = dp.slip_data.proof_data_url;
+                        updated = true;
+                      }
+                    } else {
+                      App.state.payments.push(dp);
+                      updated = true;
+                    }
+                    (dp.matched_invoices || []).forEach(ivNum => {
+                      const inv = App.state.invoices.find(i => i.iv_number === ivNum);
+                      if (inv && (!inv.slip_data || !inv.slip_data.proof_data_url)) {
+                        inv.slip_data = inv.slip_data || {};
+                        inv.slip_data.proof_data_url = dp.slip_data.proof_data_url;
+                        if (!inv.slip_data.bank && dp.slip_data.bank) inv.slip_data.bank = dp.slip_data.bank;
+                        if (!inv.slip_data.ref_no && dp.slip_data.ref_no) inv.slip_data.ref_no = dp.slip_data.ref_no;
+                        if (!inv.slip_data.payment_id) inv.slip_data.payment_id = dp.id;
+                        updated = true;
+                      }
+                    });
+                  }
+                });
+                if (updated && this.isOpen) {
+                  this.render();
+                }
+              }
+            }).catch(() => {});
+          }
         } else {
           console.error('CeoFastApprovalModal: #ceoFastApprovalModal not found in DOM');
         }
@@ -12717,8 +12900,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         if (btnApproveAll) btnApproveAll.disabled = false;
 
         // Helper to format proof display
-        const getProofInfo = (inv) => {
-          const slip = inv.slip_data;
+        const getProofInfo = (inv, uniqueKey) => {
+          const slip = App.resolveProofInfo(inv);
           const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
 
           if (isTransferred) {
@@ -12731,24 +12914,26 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             };
           }
 
-          if (!slip) {
-            return {
-              badge: `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 11px;">⚠️ ไม่มีสลิป</span>`,
-              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(30, 41, 59, 0.5); border: 1px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-muted);">ไม่มีรูป</div>`,
-              meta: '-'
-            };
-          }
-
-          const isCash = slip.type === 'CASH' || inv.payment_method === 'CASH';
+          const isCash = (slip && slip.type === 'CASH') || inv.payment_method === 'CASH' || (inv.notes && inv.notes.includes('เงินสด'));
           if (isCash) {
             return {
               badge: `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px;">💵 ชำระเงินสด</span>`,
-              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 20px;">💵<span style="font-size: 9px; color: #34d399; font-weight: 700; margin-top: 2px;">เงินสด</span></div>`,
+              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 20px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="ชำระด้วยเงินสด พนักงานรับมอบเงินครบ">💵<span style="font-size: 9px; color: #34d399; font-weight: 700; margin-top: 2px;">เงินสด</span></div>`,
               meta: 'ชำระด้วยเงินสด (พนักงานรับมอบเงินสดครบถ้วน)'
             };
           }
 
-          const isCheque = slip.type === 'CHEQUE';
+          const isStatement = slip && (slip.type === 'STATEMENT' || (slip.ref_no && (slip.ref_no.includes('STEL') || slip.ref_no.includes('ST20'))) || !!slip.highlighted_page_url);
+          if (isStatement) {
+            const refNo = slip.ref_no || '-';
+            return {
+              badge: `<span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); font-size: 11px;">🏦 Statement (SCB)</span>`,
+              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(14, 165, 233, 0.12); border: 1px solid #0284c7; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="กระทบยอดผ่าน Bank Statement อ้างอิง: ${refNo}">🏦<span style="font-size: 9px; color: #38bdf8; font-weight: 700; margin-top: 2px;">Stmt</span></div>`,
+              meta: `ธนาคารไทยพาณิชย์ (Statement) | อ้างอิง: ${refNo}`
+            };
+          }
+
+          const isCheque = slip && slip.type === 'CHEQUE';
           if (isCheque) {
             const slipImg = slip.proof_data_url || '';
             return {
@@ -12760,17 +12945,36 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             };
           }
 
-          // Transfer Slip or Statement
-          const slipImg = slip.highlighted_page_url || slip.original_file_url || slip.proof_data_url || '';
-          const bankName = slip.bank || 'ธนาคารกสิกรไทย / พร้อมเพย์';
-          const refNo = slip.ref_no || slip.trans_ref || '';
+          // Real Transfer Slip Image
+          const slipImg = slip?.proof_data_url || slip?.highlighted_page_url || slip?.original_file_url || '';
+          const bankName = slip?.bank || 'โอนผ่านธนาคาร';
+          const refNo = slip?.ref_no || slip?.trans_ref || '';
+
+          if (slipImg) {
+            return {
+              badge: `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px;">📱 สลิปโอนเงิน (มีรูป)</span>`,
+              thumbHtml: `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`,
+              meta: `ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}`
+            };
+          }
+
+          // Transfer without image in memory -> auto-trigger on-demand fetch
+          const thumbContainerId = `ceoSlipThumb_${uniqueKey}_${inv.id}`;
+          setTimeout(() => App.fetchSlipOnDemand(inv.id, thumbContainerId), 100);
+
+          if (slip && (slip.bank || slip.ref_no || slip.type === 'TRANSFER')) {
+            const shortBank = slip.bank ? slip.bank.split(' ')[0] : 'โอน';
+            return {
+              badge: `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); font-size: 11px;">📱 โอนผ่านธนาคาร</span>`,
+              thumbHtml: `<div id="${thumbContainerId}" style="width: 55px; height: 68px; background: rgba(6, 182, 212, 0.12); border: 1px solid #06b6d4; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="คลิกเพื่อดูรายละเอียดการโอน / ขยายดูสลิป">📱<span style="font-size: 8.5px; color: #22d3ee; font-weight: 700; margin-top: 2px;">${App.escapeHtml(shortBank.slice(0, 6))}</span></div>`,
+              meta: `ธนาคาร: ${bankName} | เลขอ้างอิง: ${refNo || 'ระบุผ่านระบบ'}`
+            };
+          }
 
           return {
-            badge: `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); font-size: 11px;">📱 สลิปโอนเงิน</span>`,
-            thumbHtml: slipImg 
-              ? `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`
-              : `<div style="width: 55px; height: 68px; background: rgba(6, 182, 212, 0.15); border: 1px solid #06b6d4; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px;">📱</div>`,
-            meta: `ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}`
+            badge: `<span class="badge" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 11px;">⏳ รอตรวจหลักฐาน</span>`,
+            thumbHtml: `<div id="${thumbContainerId}" style="width: 55px; height: 68px; background: rgba(30, 41, 59, 0.5); border: 1px dashed var(--border-color); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; color: var(--text-muted); cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')">⏳<span style="font-size: 8.5px; color: var(--text-muted); margin-top: 2px;">ตรวจบิล</span></div>`,
+            meta: 'รอตรวจสอบหลักฐานการชำระเงิน'
           };
         };
 
@@ -12823,7 +13027,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         // Render Desktop / iPad Table
         let tableRowsHtml = filtered.map((inv, idx) => {
           const cust = customers.find(c => c.id === inv.customer_id) || { name: '-', code: '-' };
-          const proof = getProofInfo(inv);
+          const proof = getProofInfo(inv, 'tbl_' + idx);
           const amt = parseFloat(inv.paid_amount) || parseFloat(inv.total_amount) || 0;
           const note = inv.notes || inv.note || inv.payment_note || '';
 
@@ -12870,7 +13074,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         // Render iPhone Cards
         let mobileCardsHtml = filtered.map((inv, idx) => {
           const cust = customers.find(c => c.id === inv.customer_id) || { name: '-', code: '-' };
-          const proof = getProofInfo(inv);
+          const proof = getProofInfo(inv, 'mob_' + idx);
           const amt = parseFloat(inv.paid_amount) || parseFloat(inv.total_amount) || 0;
           const isTransferred = inv.status === 'TRANSFERRED' || !!inv.transfer_data;
 
@@ -13003,21 +13207,21 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const hasPayment = (parseFloat(inv.paid_amount) > 0) || !!inv.slip_data || inv.status === 'PAID' || inv.status === 'WAITING_APPROVAL' || isTransferred;
         const isUnpaid = !isTransferred && (!hasPayment || (inv.status === 'UNPAID' && !inv.slip_data && (parseFloat(inv.paid_amount) || 0) === 0));
 
-        let slip = inv.slip_data || null;
-        if (!slip && Array.isArray(App.state.payment_allocations)) {
-          const alloc = App.state.payment_allocations.find(a => a.invoice_id === inv.id);
-          if (alloc && Array.isArray(App.state.payments)) {
-            const pay = App.state.payments.find(p => p.id === alloc.payment_id);
-            if (pay && pay.slip_data) {
-              slip = pay.slip_data;
+        let slip = App.resolveProofInfo(inv);
+        if ((!slip || !slip.proof_data_url) && (inv.status === 'WAITING_APPROVAL' || inv.status === 'PAID')) {
+          App.fetchSlipOnDemand(inv.id).then(proofUrl => {
+            if (proofUrl && this.currentInvId === inv.id) {
+              const imgEl = document.getElementById('slipInspectMainImg');
+              const placeholderEl = document.getElementById('slipInspectPlaceholder');
+              if (imgEl) {
+                imgEl.src = proofUrl;
+                imgEl.style.display = 'block';
+              }
+              if (placeholderEl) {
+                placeholderEl.style.display = 'none';
+              }
             }
-          }
-        }
-        if (!slip && Array.isArray(App.state.payments)) {
-          const pay = App.state.payments.find(p => p.slip_data && (p.reference_number === inv.iv_number || (p.note && p.note.includes(inv.iv_number))));
-          if (pay && pay.slip_data) {
-            slip = pay.slip_data;
-          }
+          });
         }
 
         const isCheque = slip && slip.type === 'CHEQUE';
@@ -13267,7 +13471,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             }
           } else if (slip && slip.proof_data_url) {
             rightProofHtml = '<div class="proof-interactive-viewer" style="margin-bottom: 10px; max-height: 180px;">' +
-              '<img src="' + slip.proof_data_url + '" alt="Payment Proof" onclick="LightboxModal.open(\'' + slip.proof_data_url + '\', \'หลักฐานการชำระเงิน #' + inv.iv_number + '\')" title="คลิกเพื่อขยายภาพเต็มจอ">' +
+              '<img id="slipInspectMainImg" src="' + slip.proof_data_url + '" alt="Payment Proof" onclick="LightboxModal.open(\'' + slip.proof_data_url + '\', \'หลักฐานการชำระเงิน #' + inv.iv_number + '\')" title="คลิกเพื่อขยายภาพเต็มจอ">' +
               '<div class="proof-viewer-toolbar">' +
               '<button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="LightboxModal.open(\'' + slip.proof_data_url + '\', \'หลักฐานการชำระเงิน #' + inv.iv_number + '\')">' +
               '🔍 ขยายภาพสลิป/เช็ค' +
@@ -13275,11 +13479,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               '</div>' +
               '</div>';
           } else if (isTransfer) {
-            rightProofHtml = '<div style="background: rgba(59, 130, 246, 0.08); border: 1.5px dashed rgba(59, 130, 246, 0.35); border-radius: var(--radius-md); padding: 16px; text-align: center; margin-bottom: 10px;">' +
+            rightProofHtml = '<div id="slipInspectPlaceholder" style="background: rgba(59, 130, 246, 0.08); border: 1.5px dashed rgba(59, 130, 246, 0.35); border-radius: var(--radius-md); padding: 16px; text-align: center; margin-bottom: 10px;">' +
               '<div style="font-size: 28px; margin-bottom: 6px;">📱</div>' +
               '<div style="font-weight: 700; color: #60a5fa; font-size: 13px;">รายการโอนเงินผ่านระบบธนาคาร</div>' +
-              '<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">ธนาคาร: <strong>' + (slip.bank || slip.receiver_bank || '-') + '</strong> • วันที่โอน: ' + (slip.transfer_date || slip.datetime || '-') + '</div>' +
-              '</div>';
+              '<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">ธนาคาร: <strong>' + (slip?.bank || slip?.receiver_bank || '-') + '</strong> • วันที่โอน: ' + (slip?.transfer_date || slip?.datetime || '-') + '</div>' +
+              (slip?.ref_no ? '<div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">เลขอ้างอิง: <strong class="font-mono text-cyan">' + slip.ref_no + '</strong></div>' : '') +
+              '</div>' +
+              '<img id="slipInspectMainImg" src="" alt="Payment Proof" style="display: none; width: 100%; border-radius: 6px; margin-bottom: 10px; cursor: pointer;" onclick="LightboxModal.open(this.src, \'หลักฐานการชำระเงิน #' + inv.iv_number + '\')">';
           } else {
             rightProofHtml = '<div style="background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); padding: 12px; text-align: center; font-size: 12px; color: var(--status-paid); margin-bottom: 10px;">' +
               '💵 ชำระด้วยเงินสดหน้าร้าน / บันทึกรับเงินสดโดยพนักงานส่งของ' +
