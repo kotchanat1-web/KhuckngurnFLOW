@@ -199,3 +199,39 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
 END $$;
+
+-- ============================================================================
+-- 13. STORAGE BUCKET SETUP (จัดเก็บภาพสลิป เช็ค และ Statement ถาวร)
+-- ============================================================================
+-- สร้าง Bucket ชื่อ 'proofs' (Public Bucket สำหรับเก็บไฟล์หลักฐานภาพ)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'proofs', 
+    'proofs', 
+    true, 
+    10485760, -- จำกัดขนาด 10MB ต่อไฟล์ (ระบบ Client บีบอัดเหลือ ~100KB อยู่แล้ว)
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+)
+ON CONFLICT (id) DO UPDATE 
+SET public = true, 
+    file_size_limit = 10485760,
+    allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+-- RLS Policies สำหรับ storage.objects
+DROP POLICY IF EXISTS "Public access for proofs" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public uploads to proofs" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public read from proofs" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public delete from proofs" ON storage.objects;
+
+-- อนุญาตให้อัปโหลดไฟล์ ดูไฟล์ และจัดการไฟล์ใน bucket 'proofs' ได้อย่างสมบูรณ์
+CREATE POLICY "Public read access for proofs" ON storage.objects
+FOR SELECT USING (bucket_id = 'proofs');
+
+CREATE POLICY "Public insert access for proofs" ON storage.objects
+FOR INSERT WITH CHECK (bucket_id = 'proofs');
+
+CREATE POLICY "Public update access for proofs" ON storage.objects
+FOR UPDATE USING (bucket_id = 'proofs') WITH CHECK (bucket_id = 'proofs');
+
+CREATE POLICY "Public delete access for proofs" ON storage.objects
+FOR DELETE USING (bucket_id = 'proofs');

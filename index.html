@@ -5614,6 +5614,91 @@ END $$;
         }
       },
 
+      /**
+       * Upload proof image (slip / cheque / statement page) to Supabase Storage Bucket ('proofs')
+       * Automatically applies smart client compression (1200px, 0.82) -> file size ~80-120 KB
+       * Returns public CDN URL on success, or falls back to compressed Data URL if offline/bucket pending
+       */
+      async uploadProofImage(dataUrlOrFile, prefix = 'slip') {
+        if (!dataUrlOrFile) return null;
+
+        let compressedDataUrl = dataUrlOrFile;
+
+        // 1. Convert File to Data URL if needed
+        if (typeof File !== 'undefined' && dataUrlOrFile instanceof File) {
+          compressedDataUrl = await new Promise((res) => {
+            const r = new FileReader();
+            r.onload = (e) => res(e.target.result);
+            r.onerror = () => res(null);
+            r.readAsDataURL(dataUrlOrFile);
+          });
+          if (!compressedDataUrl) return null;
+        }
+
+        // 2. Client-side Smart Compression (1200px max, 0.82 quality)
+        if (typeof PaymentModal !== 'undefined' && PaymentModal.compressImage && typeof compressedDataUrl === 'string' && compressedDataUrl.startsWith('data:image/')) {
+          try {
+            compressedDataUrl = await PaymentModal.compressImage(compressedDataUrl, 1200, 0.82);
+          } catch (e) {
+            console.warn('Proof compression warning:', e);
+          }
+        }
+
+        // If it's already an external HTTP/HTTPS URL, no need to re-upload
+        if (typeof compressedDataUrl === 'string' && (compressedDataUrl.startsWith('http://') || compressedDataUrl.startsWith('https://'))) {
+          return compressedDataUrl;
+        }
+
+        // 3. Cache locally in IndexedDB first (zero-delay offline readiness)
+        const now = new Date();
+        const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const cleanPrefix = String(prefix || 'slip').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const randId = Math.random().toString(36).substring(2, 7);
+        const fileName = `${cleanPrefix}_${Date.now()}_${randId}.jpg`;
+        const filePath = `${yearMonth}/${fileName}`;
+
+        try {
+          if (typeof idbSet === 'function' && typeof compressedDataUrl === 'string') {
+            await idbSet('proof_cache_' + fileName, compressedDataUrl);
+          }
+        } catch (_) {}
+
+        // 4. Try uploading to Supabase Storage Bucket ('proofs')
+        if (this.client && this.isConnected && typeof compressedDataUrl === 'string' && compressedDataUrl.startsWith('data:')) {
+          try {
+            const parts = compressedDataUrl.split(',');
+            const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+            const byteString = atob(parts[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mime });
+
+            const uploadRes = await this.client.storage.from('proofs').upload(filePath, blob, {
+              contentType: mime,
+              upsert: true
+            });
+
+            if (!uploadRes.error && uploadRes.data?.path) {
+              const publicRes = this.client.storage.from('proofs').getPublicUrl(uploadRes.data.path);
+              if (publicRes?.data?.publicUrl) {
+                console.log('✅ Proof uploaded to Supabase Storage Bucket:', publicRes.data.publicUrl);
+                return publicRes.data.publicUrl;
+              }
+            } else {
+              console.warn('Supabase storage upload notice (using compressed data URL):', uploadRes.error?.message);
+            }
+          } catch (uploadErr) {
+            console.warn('Supabase storage upload catch (using compressed data URL):', uploadErr);
+          }
+        }
+
+        // 5. Seamless fallback to compressed Data URL (safely stored in DB & IndexedDB)
+        return compressedDataUrl;
+      },
+
       async checkSchemaHealth() {
         if (!this.client) return { ok: false, missingTables: ['client_null'] };
         const tables = [
@@ -6155,8 +6240,16 @@ END $$;
             // Fallback: If Postgres returned 500 or WAL limit, strip image payloads from snapshot
             // (individual payment tables and IndexedDB preserve images safely)
             const lightSnapshot = JSON.parse(JSON.stringify(snapshot));
-            (lightSnapshot.state_data.invoices || []).forEach(i => { if (i.slip_data) i.slip_data.proof_data_url = null; });
-            (lightSnapshot.state_data.payments || []).forEach(p => { if (p.slip_data) p.slip_data.proof_data_url = null; });
+            (lightSnapshot.state_data.invoices || []).forEach(i => {
+              if (i.slip_data && i.slip_data.proof_data_url && i.slip_data.proof_data_url.startsWith('data:') && i.slip_data.proof_data_url.length > 50000) {
+                i.slip_data.proof_data_url = null;
+              }
+            });
+            (lightSnapshot.state_data.payments || []).forEach(p => {
+              if (p.slip_data && p.slip_data.proof_data_url && p.slip_data.proof_data_url.startsWith('data:') && p.slip_data.proof_data_url.length > 50000) {
+                p.slip_data.proof_data_url = null;
+              }
+            });
             const retryRes = await this.client.from('app_state_backup').upsert(lightSnapshot, { onConflict: 'id' });
             if (retryRes.error) {
               console.error('Compact snapshot also failed:', retryRes.error);
@@ -9346,36 +9439,25 @@ END $$;
 
           let totalSavedAmount = 0;
           let totalUpdatedBills = 0;
+          const uploadedPageUrls = {};
 
           for (let txIdx = 0; txIdx < matchedTxs.length; txIdx++) {
             const tx = matchedTxs[txIdx];
-            let snippetProofDataUrl = null;
-            try {
-              snippetProofDataUrl = OCRApp.generateStatementSnippet(tx, accountInfo);
-              if (snippetProofDataUrl && typeof ImageCompressor !== 'undefined') {
-                snippetProofDataUrl = await ImageCompressor.compress(snippetProofDataUrl, 800, 0.75);
-              }
-            } catch (e) {
-              console.warn('generateStatementSnippet error:', e);
-              snippetProofDataUrl = OCRApp.fileDataUrl;
-            }
-
             const matchedIvNumbers = [];
             const totalTxsCount = (OCRApp.extractedData?.transactions || []).length || 1;
-            const pageNum = tx.page_number || 1;
-            const pageDataUrl = (OCRApp.pdfPageImages && OCRApp.pdfPageImages[pageNum]) ? OCRApp.pdfPageImages[pageNum] : (OCRApp.fileDataUrl || snippetProofDataUrl);
+            const pageNum = parseInt(tx.page_number, 10) || 1;
+            const pageDataUrl = (OCRApp.pdfPageImages && OCRApp.pdfPageImages[pageNum]) ? OCRApp.pdfPageImages[pageNum] : (OCRApp.fileDataUrl || '');
             const totalPdfPages = Object.keys(OCRApp.pdfPageImages || {}).length || 1;
 
-            let highlightedPageUrl = null;
-            try {
-              highlightedPageUrl = OCRApp.generateHighlightedPageImage(pageNum, tx, pageDataUrl);
-              if (highlightedPageUrl && typeof ImageCompressor !== 'undefined') {
-                highlightedPageUrl = await ImageCompressor.compress(highlightedPageUrl, 1000, 0.70);
+            // Upload the clean statement page once per page number to storage, or fallback to compressed dataUrl
+            if (!uploadedPageUrls[pageNum] && pageDataUrl) {
+              if (typeof SupabaseSync !== 'undefined' && SupabaseSync.uploadProofImage) {
+                uploadedPageUrls[pageNum] = await SupabaseSync.uploadProofImage(pageDataUrl, 'stmt_p' + pageNum);
+              } else {
+                uploadedPageUrls[pageNum] = pageDataUrl;
               }
-            } catch (e) {
-              console.warn('generateHighlightedPageImage error:', e);
-              highlightedPageUrl = pageDataUrl;
             }
+            const finalProofUrl = uploadedPageUrls[pageNum] || pageDataUrl;
 
             const payId = 'PAY-' + Math.floor(1000 + Math.random() * 9000);
             const isBundledTx = (tx.allocated_bills || []).length > 1;
@@ -9401,9 +9483,9 @@ END $$;
                 receiver_bank: accountInfo.bank,
                 receiver_account: accountInfo.accNo || '-',
                 amount: inv.paid_amount,
-                proof_data_url: snippetProofDataUrl,
-                original_file_url: highlightedPageUrl || pageDataUrl,
-                highlighted_page_url: highlightedPageUrl,
+                proof_data_url: finalProofUrl,
+                original_file_url: finalProofUrl,
+                highlighted_page_url: null,
                 all_pages: null,
                 page_number: pageNum,
                 total_pdf_pages: totalPdfPages,
@@ -9471,9 +9553,9 @@ END $$;
                 receiver_bank: accountInfo.bank,
                 receiver_account: accountInfo.accNo || '-',
                 amount: txAmt,
-                proof_data_url: snippetProofDataUrl,
-                original_file_url: highlightedPageUrl || pageDataUrl,
-                highlighted_page_url: highlightedPageUrl,
+                proof_data_url: finalProofUrl,
+                original_file_url: finalProofUrl,
+                highlighted_page_url: null,
                 all_pages: null,
                 page_number: pageNum,
                 total_pdf_pages: totalPdfPages,
@@ -9748,13 +9830,14 @@ END $$;
             canvas.width = viewport.width;
 
             await curPage.render({ canvasContext: context, viewport: viewport }).promise;
-            const pageDataUrl = canvas.toDataURL('image/png');
+            // Compress rendered PDF page to crisp JPEG (0.85 quality) to save ~90% memory while preserving all details
+            const pageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
             this.pdfPageImages[p] = pageDataUrl;
 
             if (p === 1) {
               this.fileDataUrl = pageDataUrl;
               this.fileBase64 = pageDataUrl.split(',')[1];
-              this.fileType = 'image/png';
+              this.fileType = 'image/jpeg';
             }
 
             // Extract text tokens and reconstruct lines with exact canvas viewport coordinates
@@ -10154,6 +10237,7 @@ END $$;
           return 'You are an expert Thai Bank Statement OCR Engine.\n' +
             'Analyze the statement document and extract EVERY single deposit / credit (เงินเข้า) transaction row into valid JSON.\n' +
             'Do not truncate, summarize or omit any row.\n' +
+            'CRITICAL: For each transaction, identify and set "page_number" as the 1-based page number where that transaction appears.\n' +
             '{\n' +
             '  "account_bank": "string",\n' +
             '  "account_number": "string",\n' +
@@ -10163,6 +10247,7 @@ END $$;
             '  "transactions": [\n' +
             '    {\n' +
             '      "id": "TX-01",\n' +
+            '      "page_number": 1,\n' +
             '      "datetime": "YYYY-MM-DD HH:mm",\n' +
             '      "channel": "string",\n' +
             '      "sender_account": "string",\n' +
@@ -11327,7 +11412,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         this.checkAmountMismatch();
       },
 
-      handleSubmit(e) {
+      async handleSubmit(e) {
         e.preventDefault();
         try {
           const custId = document.getElementById('payCustomerSelect')?.value;
@@ -11358,6 +11443,21 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             return;
           }
 
+          const cust = App.state.customers.find(c => c.id === custId) || { name: 'ลูกค้าทั่วไป' };
+
+          // Upload compressed proof image to Supabase Storage Bucket or fallback to compressed Data URL
+          let finalProofUrl = this.proofDataUrl;
+          if (type !== 'CASH' && this.proofDataUrl) {
+            if (typeof SupabaseSync !== 'undefined' && SupabaseSync.uploadProofImage) {
+              const prefix = type === 'CHEQUE' ? 'cheque' : 'slip';
+              try {
+                finalProofUrl = await SupabaseSync.uploadProofImage(this.proofDataUrl, `${prefix}_${ref !== '-' ? ref : (cust.code || 'pay')}`);
+              } catch (upErr) {
+                console.warn('Storage upload fallback note:', upErr);
+              }
+            }
+          }
+
           if (!Array.isArray(App.state.payments)) App.state.payments = [];
           if (!Array.isArray(App.state.invoices)) App.state.invoices = [];
           if (!Array.isArray(App.state.customers)) App.state.customers = [];
@@ -11371,8 +11471,6 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           let remainingToMatch = amount;
           const selectedCheckboxes = Array.from(document.querySelectorAll('input[name="matchInv"]:checked'));
           const targetInvoices = selectedCheckboxes.map(cb => App.state.invoices.find(i => i.id === cb.value)).filter(Boolean);
-
-          const cust = App.state.customers.find(c => c.id === custId) || { name: 'ลูกค้าทั่วไป' };
 
           const recName = this.passedSlipData?.receiver || 
                           this.passedSlipData?.account_name || 
@@ -11401,7 +11499,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             receiver_bank: recBank,
             receiver_account: recAcc,
             amount: amount,
-            proof_data_url: this.proofDataUrl
+            proof_data_url: finalProofUrl
           };
 
           const matchedIvNumbers = [];
@@ -12762,7 +12860,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         }
       },
 
-      openSlipZoom(imgUrl, title, metaHtml) {
+      openSlipZoom(imgUrl, title, metaHtml, invId = null) {
         const modal = document.getElementById('ceoSlipZoomModal');
         const img = document.getElementById('ceoSlipZoomImg');
         const titleEl = document.getElementById('ceoSlipZoomTitle');
@@ -12771,7 +12869,12 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         img.src = imgUrl || '';
         if (titleEl) titleEl.innerText = title || '📱 หลักฐานสลิปการโอนเงิน';
-        if (metaEl) metaEl.innerHTML = metaHtml || '-';
+
+        let metaContent = metaHtml || '-';
+        if (invId) {
+          metaContent += ` <button type="button" class="btn btn-secondary" style="padding: 3px 10px; font-size: 11px; margin-left: 8px; border-radius: var(--radius-full); cursor: pointer;" onclick="CeoFastApprovalModal.closeSlipZoom(); SlipInspectModal.open('${invId}')">🔍 ศูนย์ตรวจคู่บิลละเอียด</button>`;
+        }
+        if (metaEl) metaEl.innerHTML = metaContent;
         modal.classList.add('active');
       },
 
@@ -12921,13 +13024,33 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             };
           }
 
-          const isStatement = slip && (slip.type === 'STATEMENT' || (slip.ref_no && (slip.ref_no.includes('STEL') || slip.ref_no.includes('ST20'))) || !!slip.highlighted_page_url);
+          const isStatement = slip && (
+            slip.type === 'STATEMENT' || 
+            (slip.ref_no && (slip.ref_no.startsWith('STMT') || slip.ref_no.includes('STEL') || slip.ref_no.includes('ST20'))) || 
+            !!slip.highlighted_page_url || 
+            (slip.crop_info && slip.crop_info.txIndex)
+          );
           if (isStatement) {
+            const pageNum = slip.page_number || slip.crop_info?.pageNumber || 1;
+            const stmtImg = slip.proof_data_url || slip.highlighted_page_url || slip.original_file_url || '';
             const refNo = slip.ref_no || '-';
+            const bankName = slip.bank || slip.receiver_bank || 'Statement';
+            const txDt = slip.crop_info?.datetime || slip.transfer_date || '-';
+            const txAmt = App.formatCurrency(slip.amount || inv.paid_amount || 0);
+            const txChannel = slip.crop_info?.channel || bankName;
+
+            if (stmtImg) {
+              const metaDetail = `📄 สเตตเม้นท์ หน้า ${pageNum} | 🗓️ ${txDt} | 💰 ฿${txAmt} | 🏷️ ${txChannel}`;
+              return {
+                badge: `<span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); font-size: 11px;">🏦 Statement (น. ${pageNum})</span>`,
+                thumbHtml: `<img src="${stmtImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${stmtImg}', 'Statement หน้า ${pageNum} #${inv.iv_number}', '${metaDetail.replace(/'/g, "\\'")}', '${inv.id}')" title="แตะเพื่อขยายดูหน้า Statement เต็มจอ">`,
+                meta: metaDetail
+              };
+            }
             return {
-              badge: `<span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); font-size: 11px;">🏦 Statement (SCB)</span>`,
-              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(14, 165, 233, 0.12); border: 1px solid #0284c7; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="กระทบยอดผ่าน Bank Statement อ้างอิง: ${refNo}">🏦<span style="font-size: 9px; color: #38bdf8; font-weight: 700; margin-top: 2px;">Stmt</span></div>`,
-              meta: `ธนาคารไทยพาณิชย์ (Statement) | อ้างอิง: ${refNo}`
+              badge: `<span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); font-size: 11px;">🏦 Statement (น. ${pageNum})</span>`,
+              thumbHtml: `<div style="width: 55px; height: 68px; background: rgba(14, 165, 233, 0.12); border: 1px solid #0284c7; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; cursor: pointer;" onclick="SlipInspectModal.open('${inv.id}')" title="กระทบยอดผ่าน Bank Statement อ้างอิง: ${refNo}">🏦<span style="font-size: 9px; color: #38bdf8; font-weight: 700; margin-top: 2px;">น. ${pageNum}</span></div>`,
+              meta: `${bankName} (Statement หน้า ${pageNum}) | อ้างอิง: ${refNo} | วันที่: ${txDt}`
             };
           }
 
@@ -12937,7 +13060,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             return {
               badge: `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 11px;">📑 เช็คธนาคาร</span>`,
               thumbHtml: slipImg 
-                ? `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'เช็คธนาคาร #${inv.iv_number}', 'เช็ค: ${slip.bank || '-'} เลขที่: ${slip.ref_no || '-'}')" title="แตะเพื่อดูรูปเช็คขยายใหญ่">`
+                ? `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'เช็คธนาคาร #${inv.iv_number}', 'เช็ค: ${slip.bank || '-'} เลขที่: ${slip.ref_no || '-'}', '${inv.id}')" title="แตะเพื่อดูรูปเช็คขยายใหญ่">`
                 : `<div style="width: 55px; height: 68px; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px;">📑</div>`,
               meta: `เช็คธนาคาร: ${slip.bank || '-'} เลขที่เช็ค: ${slip.ref_no || '-'}`
             };
@@ -12951,7 +13074,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           if (slipImg) {
             return {
               badge: `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px;">📱 สลิปโอนเงิน (มีรูป)</span>`,
-              thumbHtml: `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`,
+              thumbHtml: `<img src="${slipImg}" class="ceo-slip-thumb" onclick="CeoFastApprovalModal.openSlipZoom('${slipImg}', 'สลิปโอนเงิน #${inv.iv_number}', 'ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}', '${inv.id}')" title="แตะเพื่อขยายดูสลิปเต็มจอ">`,
               meta: `ธนาคาร: ${bankName} ${refNo ? '| อ้างอิง: ' + refNo : ''}`
             };
           }
@@ -13420,43 +13543,41 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             }
 
             if (originalImgUrl || snippetImgUrl) {
-              rightProofHtml =
-                '<div class="statement-proof-tabs">' +
-                '<button type="button" class="statement-proof-tab-btn ' + (this.currentProofTab === 'original' ? 'active' : '') + '" id="btnProofTabOriginal" onclick="SlipInspectModal.switchProofTab(\'original\')">' +
-                '📄 เอกสารต้นฉบับ Original (หน้าที่ ' + pageNum + (totalPages > 1 ? ' / ' + totalPages : '') + ')' +
-                '</button>' +
-                '<button type="button" class="statement-proof-tab-btn ' + (this.currentProofTab === 'snippet' ? 'active' : '') + '" id="btnProofTabSnippet" onclick="SlipInspectModal.switchProofTab(\'snippet\')">' +
-                '✂️ จุดที่ Crop (Snippet รายการนี้)' +
-                '</button>' +
-                '</div>' +
+              const displayImgUrl = originalImgUrl || snippetImgUrl;
+              const txDt = slip.transfer_date || slip.crop_info?.datetime || '-';
+              const txAmt = App.formatCurrency(inv.paid_amount || slip.amount || 0);
+              const txChannel = slip.crop_info?.channel || slip.bank || 'Statement';
+              const txSender = slip.sender_name || 'ลูกค้าโอนผ่าน Statement';
 
-                '<!-- Full Original Page View -->' +
-                '<div id="proofViewOriginal" style="' + (this.currentProofTab === 'original' ? 'display:block;' : 'display:none;') + '">' +
+              rightProofHtml =
+                '<!-- Statement Clean Page Viewer with Detail Banner -->' +
+                '<div style="margin-bottom: 10px;">' +
                 pageButtonsHtml +
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 4px 8px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 11.5px;">' +
-                '<span>📄 <strong>เอกสารต้นฉบับหน้าที่ ' + pageNum + '</strong> ' + (totalPages > 1 ? '(จากทั้งหมด ' + totalPages + ' หน้า)' : '') + '</span>' +
-                '<span class="badge badge-paid" style="font-size: 10px;">⭐ หน้าที่มียอดรายการนี้</span>' +
+                '<!-- Transaction Detail HUD Banner -->' +
+                '<div style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(30, 41, 59, 0.4) 100%); border: 1px solid rgba(14, 165, 233, 0.4); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; font-size: 12px;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">' +
+                '<span style="color: #38bdf8; font-weight: 700;">📄 Statement หน้าที่ ' + pageNum + (totalPages > 1 ? ' / ' + totalPages : '') + '</span>' +
+                '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px; font-weight: 700;">⭐ ยอดเงินตรงกับหน้านี้</span>' +
                 '</div>' +
-                '<div class="statement-original-container" style="margin-bottom: 8px; max-height: 240px;">' +
-                '<img id="slipModalOriginalImg" src="' + (originalImgUrl || snippetImgUrl) + '" alt="Original Statement Page ' + pageNum + '" onclick="LightboxModal.open(\'' + (originalImgUrl || snippetImgUrl) + '\', \'ไฟล์เอกสาร Statement ต้นฉบับหน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })" title="คลิกเพื่อขยายดูไฟล์ต้นฉบับเต็มจอ">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">' +
+                '<div>' +
+                '<span style="color: var(--text-muted);">🗓️ วัน-เวลา:</span> <strong>' + txDt + '</strong> ' +
+                '<span style="margin: 0 4px; color: var(--border-color);">|</span> ' +
+                '<span style="color: var(--text-muted);">🏷️ ช่องทาง:</span> <strong>' + txChannel + '</strong>' +
                 '</div>' +
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
-                '<span style="font-size: 11px; color: var(--text-muted);">💡 เปิดดูที่หน้า ' + pageNum + ' พร้อมแถบข้อมูลวัน-เวลาและยอดเงิน</span>' +
-                '<button type="button" class="btn btn-primary" style="padding: 3px 10px; font-size: 11.5px;" onclick="LightboxModal.open(\'' + (originalImgUrl || snippetImgUrl) + '\', \'ไฟล์เอกสาร Statement ต้นฉบับหน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })">' +
+                '<div class="font-mono text-emerald" style="font-size: 14px; font-weight: 800;">' +
+                '฿' + txAmt +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="statement-original-container" style="margin-bottom: 8px; max-height: 250px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color);">' +
+                '<img id="slipModalOriginalImg" src="' + displayImgUrl + '" alt="Statement Page ' + pageNum + '" style="width: 100%; object-fit: contain; cursor: pointer;" onclick="LightboxModal.open(\'' + displayImgUrl + '\', \'Statement หน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })" title="คลิกเพื่อขยายดูไฟล์ Statement หน้า ' + pageNum + ' เต็มจอ">' +
+                '</div>' +
+                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                '<span style="font-size: 11px; color: var(--text-muted);">💡 แสดงหน้าหลักฐานที่ตรงกับรายการนี้โดยตรง</span>' +
+                '<button type="button" class="btn btn-primary" style="padding: 4px 12px; font-size: 11.5px; border-radius: var(--radius-full);" onclick="LightboxModal.open(\'' + displayImgUrl + '\', \'Statement หน้าที่ ' + pageNum + ' #' + inv.iv_number + '\', { pages: SlipInspectModal.getPagesMap(), currentPage: ' + pageNum + ', tx: ' + JSON.stringify(slip.crop_info || null).replace(/"/g, '&quot;') + ' })">' +
                 '🔍 ขยายดูหน้า ' + pageNum + ' เต็มจอ' +
                 '</button>' +
-                '</div>' +
-                '</div>' +
-
-                '<!-- Snippet View -->' +
-                '<div id="proofViewSnippet" style="' + (this.currentProofTab === 'snippet' ? 'display:block;' : 'display:none;') + '">' +
-                '<div class="proof-interactive-viewer" style="margin-bottom: 8px; max-height: 200px;">' +
-                '<img src="' + (snippetImgUrl || originalImgUrl) + '" alt="Statement Crop Snippet" onclick="LightboxModal.open(\'' + (snippetImgUrl || originalImgUrl) + '\', \'ภาพตัดรายการ Statement (ลำดับที่ #' + txIdx + ' • หน้าที่ ' + pageNum + ') #' + inv.iv_number + '\')" title="คลิกเพื่อขยายภาพเต็มจอ">' +
-                '<div class="proof-viewer-toolbar">' +
-                '<button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="LightboxModal.open(\'' + (snippetImgUrl || originalImgUrl) + '\', \'ภาพตัดรายการ Statement (ลำดับที่ #' + txIdx + ' • หน้าที่ ' + pageNum + ') #' + inv.iv_number + '\')">' +
-                '🔍 ขยายดูภาพ Snippet' +
-                '</button>' +
-                '</div>' +
                 '</div>' +
                 '</div>';
             } else {
@@ -13767,8 +13888,17 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             dataUrl = await PaymentModal.compressImage(dataUrl, 1200, 0.82);
           }
 
+          let finalProofUrl = dataUrl;
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.uploadProofImage) {
+            try {
+              finalProofUrl = await SupabaseSync.uploadProofImage(dataUrl, 'slip_' + (inv.iv_number || inv.id));
+            } catch (upErr) {
+              console.warn('attachProof storage upload note:', upErr);
+            }
+          }
+
           inv.slip_data = inv.slip_data || {};
-          inv.slip_data.proof_data_url = dataUrl;
+          inv.slip_data.proof_data_url = finalProofUrl;
           inv.slip_data.has_proof = true;
           inv.updated_at = new Date().toISOString();
 
@@ -13784,7 +13914,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
           if (linkedPay) {
             linkedPay.slip_data = linkedPay.slip_data || {};
-            linkedPay.slip_data.proof_data_url = dataUrl;
+            linkedPay.slip_data.proof_data_url = finalProofUrl;
             linkedPay.updated_at = new Date().toISOString();
           }
 
