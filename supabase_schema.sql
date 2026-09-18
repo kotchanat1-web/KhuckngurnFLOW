@@ -218,6 +218,11 @@ SET public = true,
     allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 -- RLS Policies สำหรับ storage.objects
+-- ลบ Policy เดิมออกก่อนทั้งหมดเพื่อป้องกันข้อผิดพลาด "policy already exists"
+DROP POLICY IF EXISTS "Public read access for proofs" ON storage.objects;
+DROP POLICY IF EXISTS "Public insert access for proofs" ON storage.objects;
+DROP POLICY IF EXISTS "Public update access for proofs" ON storage.objects;
+DROP POLICY IF EXISTS "Public delete access for proofs" ON storage.objects;
 DROP POLICY IF EXISTS "Public access for proofs" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public uploads to proofs" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public read from proofs" ON storage.objects;
