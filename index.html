@@ -3599,6 +3599,47 @@
             </div>
           </div>
 
+          <!-- Local Backup & Disaster Recovery Card -->
+          <div
+            style="background: var(--bg-surface-elevated); padding: 18px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1.5px solid rgba(59, 130, 246, 0.35); box-shadow: 0 4px 16px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <label class="form-label" style="font-size: 14.5px; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                  <span>💾 ศูนย์สำรองและกู้คืนข้อมูลลงเครื่อง (Local Backup & Disaster Recovery Hub)</span>
+                </label>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 0;">
+                  สำรองข้อมูลทุกบิล สลิป และประวัติลงเครื่องคอมพิวเตอร์ของคุณในรูปแบบไฟล์ JSON สามารถนำกลับมากู้คืนหรือรวมข้อมูล (Merge) ได้ตลอดเวลา ทำงานแบบ Offline 100%
+                </p>
+              </div>
+              <div id="localBackupStatusBadge" style="font-size: 11.5px; padding: 4px 10px; border-radius: 12px; font-weight: 600; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+                📦 ข้อมูลพร้อมสำรอง
+              </div>
+            </div>
+
+            <!-- Stats info box -->
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px;">
+              <div id="localBackupInfoText" style="color: var(--text-secondary);">
+                🕒 สำรองข้อมูลล่าสุด: <strong style="color: var(--text-primary);" id="lblLastBackupTime">ยังไม่มีการบันทึกในเซสชันนี้</strong>
+              </div>
+              <div style="color: var(--text-muted); font-size: 11.5px;" id="lblBackupDataCounts">
+                บิลขาย: <strong class="text-emerald" id="cntBackupInvoices">0</strong> ใบ | ลูกค้า: <strong class="text-cyan" id="cntBackupCustomers">0</strong> ราย
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary" style="padding: 7px 14px; font-size: 12.5px; background: #2563eb; border-color: #3b82f6;" onclick="DataManager.downloadLocalBackup()">
+                  <span>💾 ดาวน์โหลดไฟล์สำรองข้อมูล (Download Backup JSON)</span>
+                </button>
+                <button type="button" class="btn btn-secondary" style="padding: 7px 14px; font-size: 12.5px; border-color: rgba(59, 130, 246, 0.5); color: #93c5fd;" onclick="DataManager.openRestoreModal()">
+                  <span>📥 กู้คืน / นำเข้าไฟล์สำรอง (Import & Restore)</span>
+                </button>
+              </div>
+              <span style="font-size: 11px; color: var(--text-muted);">🛡️ ข้อมูลบันทึกตรงสู่เครื่องคุณ ปลอดภัย 100%</span>
+            </div>
+          </div>
+
           <!-- Company Bank Accounts Management Card -->
           <div
             style="background: var(--bg-surface-elevated); padding: 18px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--border-color);">
@@ -3731,10 +3772,15 @@
 
           <div
             style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <button class="btn btn-secondary" onclick="DataManager.resetToDemoData()"
-              style="color: var(--status-unpaid);">
-              <span>🔄 รีเซ็ตเป็นข้อมูลตัวอย่างเริ่มต้น (Demo Data)</span>
-            </button>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <button class="btn btn-secondary" onclick="DataManager.resetToDemoData()"
+                style="color: var(--status-unpaid);">
+                <span>🔄 รีเซ็ตเป็นข้อมูลตัวอย่างเริ่มต้น (Demo Data)</span>
+              </button>
+              <button class="btn btn-primary" onclick="DataManager.downloadLocalBackup()" style="background: var(--accent-blue); border-color: var(--accent-blue);">
+                <span>💾 ดาวน์โหลดสำรองข้อมูล (Local Backup)</span>
+              </button>
+            </div>
             <button class="btn btn-primary" onclick="App.saveSettings()">
               <span>บันทึกการตั้งค่า</span>
             </button>
@@ -4768,6 +4814,78 @@
     </div>
   </div>
 
+  <!-- ==========================================================================
+       MODAL 14: LOCAL BACKUP RESTORE & IMPORT DIALOG
+       ========================================================================== -->
+  <div class="modal-backdrop" id="localRestoreModal" style="z-index: 230;">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📥</span>
+          <div>
+            <div class="modal-title" style="font-size: 15px;">กู้คืน / นำเข้าไฟล์สำรองข้อมูล (Import Backup)</div>
+            <div class="modal-subtitle">เลือกไฟล์ JSON ที่สำรองไว้เพื่อนำข้อมูลกลับเข้าสู่ระบบ</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="DataManager.closeRestoreModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- File Picker -->
+        <div style="background: var(--bg-surface-elevated); border: 2px dashed rgba(59, 130, 246, 0.4); border-radius: var(--radius-md); padding: 20px; text-align: center; margin-bottom: 16px; cursor: pointer;" onclick="document.getElementById('backupFileInput').click()">
+          <div style="font-size: 32px; margin-bottom: 8px;">📂</div>
+          <div style="font-weight: 700; color: var(--text-primary); font-size: 13.5px; margin-bottom: 4px;">คลิกเพื่อเลือกไฟล์สำรองข้อมูล (.json)</div>
+          <div style="font-size: 11.5px; color: var(--text-muted);" id="lblSelectedBackupFile">รองรับไฟล์ KhuckngurnBackup_*.json</div>
+          <input type="file" id="backupFileInput" accept=".json" style="display: none;" onchange="DataManager.handleBackupFileSelected(this.files[0])">
+        </div>
+
+        <!-- Mode selection -->
+        <div style="margin-bottom: 16px;">
+          <label class="form-label" style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; display: block;">
+            ⚙️ เลือกรูปแบบการนำเข้าข้อมูล (Import Mode):
+          </label>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Merge option -->
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(16, 185, 129, 0.08); border: 1.5px solid rgba(16, 185, 129, 0.4); border-radius: var(--radius-sm); padding: 12px; cursor: pointer;">
+              <input type="radio" name="restoreMode" value="merge" checked style="margin-top: 3px;">
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #34d399;">🌟 รวมข้อมูลแบบสะสม (Incremental Merge - แนะนำ)</div>
+                <div style="font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;">
+                  นำบิลขาย, สลิป และลูกค้าที่ยังไม่มีในระบบเข้ามาเพิ่ม <strong>โดยไม่ลบหรือทับข้อมูลปัจจุบัน</strong> ข้อมูลไม่สูญหายแน่นอน
+                </div>
+              </div>
+            </label>
+
+            <!-- Replace option -->
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-sm); padding: 12px; cursor: pointer;">
+              <input type="radio" name="restoreMode" value="replace" style="margin-top: 3px;">
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #f87171;">⚠️ แทนที่ข้อมูลทั้งหมด (Full Overwrite / Restore)</div>
+                <div style="font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;">
+                  ลบข้อมูลปัจจุบันและย้อนกลับไปใช้ข้อมูลจากไฟล์สำรอง 100% (เหมาะสำหรับกู้คืนเมื่อข้อมูลเสียหาย)
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Preview summary if loaded -->
+        <div id="backupFilePreviewBox" style="display: none; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px;">
+          <div style="font-weight: 700; color: #60a5fa; margin-bottom: 4px;">สรุปข้อมูลในไฟล์สำรอง:</div>
+          <div id="backupFilePreviewText" style="color: var(--text-secondary); font-size: 11.5px;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 18px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="DataManager.closeRestoreModal()">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmRestore" onclick="DataManager.executeRestore()" disabled style="background: #2563eb; border-color: #3b82f6;">
+          <span>🚀 เริ่มต้นนำเข้าข้อมูล</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toastContainer"></div>
 
@@ -4914,6 +5032,262 @@
         this.pendingChangeCount = 0;
         if (typeof SupabaseSync !== 'undefined' && SupabaseSync.updateHeaderSaveButton) {
           SupabaseSync.updateHeaderSaveButton();
+        }
+      },
+
+      downloadLocalBackup() {
+        try {
+          const now = new Date();
+          const timestamp = now.getFullYear() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') + '_' +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0');
+          const backupFileName = `KhuckngurnBackup_${timestamp}.json`;
+          
+          App.state.audit_logs = App.state.audit_logs || [];
+          const logEntry = {
+            id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+            timestamp: App.getLocalDateTimeStr(),
+            user: App.state.currentUserRole || 'Admin',
+            action: 'LOCAL_BACKUP',
+            table_name: 'system',
+            record_id: backupFileName,
+            detail: `ผู้ใช้ดาวน์โหลดไฟล์สำรองข้อมูลลงเครื่อง (${backupFileName}) จำนวนบิล: ${App.state.invoices?.length || 0} ใบ`
+          };
+          App.state.audit_logs.unshift(logEntry);
+          
+          App.state.last_local_backup = {
+            timestamp: App.getLocalDateTimeStr(),
+            fileName: backupFileName,
+            user: App.state.currentUserRole || 'Admin'
+          };
+          
+          this.save(App.state);
+          this.updateBackupStatusUI();
+
+          const dataStr = JSON.stringify(App.state, null, 2);
+          const blob = new Blob([dataStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = backupFileName;
+          document.body.appendChild(a);
+          a.click();
+          
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 150);
+          
+          App.showToast(`✓ ดาวน์โหลดไฟล์สำรองข้อมูล ${backupFileName} เรียบร้อยแล้ว`, 'success');
+        } catch (err) {
+          console.error("Local backup error:", err);
+          App.showToast('เกิดข้อผิดพลาดในการสร้างไฟล์สำรองข้อมูล', 'error');
+        }
+      },
+
+      tempBackupData: null,
+
+      openRestoreModal() {
+        this.tempBackupData = null;
+        const modal = document.getElementById('localRestoreModal');
+        const fileInput = document.getElementById('backupFileInput');
+        const previewBox = document.getElementById('backupFilePreviewBox');
+        const lblFile = document.getElementById('lblSelectedBackupFile');
+        const btnConfirm = document.getElementById('btnConfirmRestore');
+
+        if (fileInput) fileInput.value = '';
+        if (previewBox) previewBox.style.display = 'none';
+        if (lblFile) lblFile.innerText = 'รองรับไฟล์ KhuckngurnBackup_*.json';
+        if (btnConfirm) btnConfirm.disabled = true;
+
+        if (modal) modal.classList.add('active');
+      },
+
+      closeRestoreModal() {
+        const modal = document.getElementById('localRestoreModal');
+        if (modal) modal.classList.remove('active');
+        this.tempBackupData = null;
+      },
+
+      handleBackupFileSelected(file) {
+        if (!file) return;
+        const lblFile = document.getElementById('lblSelectedBackupFile');
+        const previewBox = document.getElementById('backupFilePreviewBox');
+        const previewText = document.getElementById('backupFilePreviewText');
+        const btnConfirm = document.getElementById('btnConfirmRestore');
+
+        if (lblFile) lblFile.innerText = `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            if (!parsed || (typeof parsed !== 'object')) {
+              throw new Error('รูปแบบไฟล์ JSON ไม่ถูกต้อง');
+            }
+            this.tempBackupData = parsed;
+            const invCount = parsed.invoices?.length || 0;
+            const custCount = parsed.customers?.length || 0;
+            const payCount = parsed.payments?.length || 0;
+            const backupDate = parsed.last_local_backup?.timestamp || 'ไม่ระบุ';
+
+            if (previewText) {
+              previewText.innerHTML = `
+                <div>• บิลขาย (Invoices): <strong>${invCount}</strong> รายการ</div>
+                <div>• ลูกค้า (Customers): <strong>${custCount}</strong> ราย</div>
+                <div>• รายการชำระเงิน (Payments): <strong>${payCount}</strong> รายการ</div>
+                <div>• วันที่สำรองข้อมูลเดิม: <strong>${backupDate}</strong></div>
+              `;
+            }
+            if (previewBox) previewBox.style.display = 'block';
+            if (btnConfirm) btnConfirm.disabled = false;
+          } catch (err) {
+            console.error('Parse backup file error:', err);
+            App.showToast('ไฟล์ JSON ไม่ถูกต้องหรือไม่ตรงกับรูปแบบสำรองข้อมูล', 'error');
+            if (btnConfirm) btnConfirm.disabled = true;
+          }
+        };
+        reader.readAsText(file);
+      },
+
+      executeRestore() {
+        if (!this.tempBackupData) {
+          App.showToast('กรุณาเลือกไฟล์สำรองข้อมูลก่อน', 'warning');
+          return;
+        }
+
+        const modeEl = document.querySelector('input[name="restoreMode"]:checked');
+        const mode = modeEl ? modeEl.value : 'merge';
+        const data = this.tempBackupData;
+
+        try {
+          if (mode === 'replace') {
+            if (!confirm('คำเตือน: โหมดแทนที่จะลบข้อมูลปัจจุบันทั้งหมดในเครื่อง และใช้ข้อมูลจากไฟล์สำรอง ท่านต้องการดำเนินการต่อหรือไม่?')) {
+              return;
+            }
+            App.state = data;
+            App.state.audit_logs = App.state.audit_logs || [];
+            App.state.audit_logs.unshift({
+              id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+              timestamp: App.getLocalDateTimeStr(),
+              user: App.state.currentUserRole || 'Admin',
+              action: 'LOCAL_RESTORE_FULL',
+              table_name: 'system',
+              record_id: 'FULL_RESTORE',
+              detail: `กู้คืนข้อมูลแบบเต็มรูปแบบ (Full Restore) จากไฟล์สำรอง`
+            });
+            this.save(App.state);
+            App.showToast('✓ กู้คืนข้อมูลแบบเต็มรูปแบบเรียบร้อยแล้ว', 'success');
+          } else {
+            // Incremental Merge Mode
+            let addedInvoices = 0;
+            let updatedInvoices = 0;
+            let addedCustomers = 0;
+            let addedPayments = 0;
+
+            App.state.invoices = App.state.invoices || [];
+            App.state.customers = App.state.customers || [];
+            App.state.payments = App.state.payments || [];
+            App.state.bank_accounts = App.state.bank_accounts || [];
+
+            // 1. Merge Customers
+            (data.customers || []).forEach(incomingCust => {
+              const exists = App.state.customers.find(c => c.id === incomingCust.id || c.code === incomingCust.code);
+              if (!exists) {
+                App.state.customers.push(incomingCust);
+                addedCustomers++;
+              }
+            });
+
+            // 2. Merge Invoices
+            (data.invoices || []).forEach(incomingInv => {
+              const existingIdx = App.state.invoices.findIndex(i => i.id === incomingInv.id || i.iv_number === incomingInv.iv_number);
+              if (existingIdx === -1) {
+                App.state.invoices.push(incomingInv);
+                addedInvoices++;
+              } else {
+                // If existing invoice doesn't have proof or is UNPAID while incoming has proof/PAID, update it
+                const existing = App.state.invoices[existingIdx];
+                if ((!existing.slip_data?.proof_data_url && incomingInv.slip_data?.proof_data_url) || 
+                    (existing.status === 'UNPAID' && incomingInv.status !== 'UNPAID')) {
+                  App.state.invoices[existingIdx] = { ...existing, ...incomingInv };
+                  updatedInvoices++;
+                }
+              }
+            });
+
+            // 3. Merge Payments
+            (data.payments || []).forEach(incomingPay => {
+              const exists = App.state.payments.find(p => p.id === incomingPay.id || p.payment_number === incomingPay.payment_number);
+              if (!exists) {
+                App.state.payments.push(incomingPay);
+                addedPayments++;
+              }
+            });
+
+            // 4. Merge Bank Accounts
+            (data.bank_accounts || []).forEach(incomingAcc => {
+              const exists = App.state.bank_accounts.find(a => a.account_number === incomingAcc.account_number);
+              if (!exists) {
+                App.state.bank_accounts.push(incomingAcc);
+              }
+            });
+
+            App.state.audit_logs = App.state.audit_logs || [];
+            App.state.audit_logs.unshift({
+              id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+              timestamp: App.getLocalDateTimeStr(),
+              user: App.state.currentUserRole || 'Admin',
+              action: 'LOCAL_RESTORE_MERGE',
+              table_name: 'system',
+              record_id: 'MERGE',
+              detail: `รวมข้อมูลแบบสะสม (Incremental Merge): เพิ่มบิลใหม่ ${addedInvoices} ใบ, อัปเดต ${updatedInvoices} ใบ, ลูกค้าใหม่ ${addedCustomers} ราย`
+            });
+
+            this.save(App.state);
+            App.showToast(`✓ รวมข้อมูลสำเร็จ: เพิ่มบิลใหม่ ${addedInvoices} ใบ, ลูกค้า ${addedCustomers} ราย`, 'success');
+          }
+
+          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.debouncedPush) {
+            SupabaseSync.debouncedPush(App.state, true);
+          }
+
+          this.updateBackupStatusUI();
+          App.refreshAllViews();
+          this.closeRestoreModal();
+        } catch (err) {
+          console.error('Execute restore error:', err);
+          App.showToast('เกิดข้อผิดพลาดในการนำเข้าข้อมูล: ' + err.message, 'error');
+        }
+      },
+
+      updateBackupStatusUI() {
+        const lastEl = document.getElementById('lblLastBackupTime');
+        const countInvEl = document.getElementById('cntBackupInvoices');
+        const countCustEl = document.getElementById('cntBackupCustomers');
+        const badgeEl = document.getElementById('localBackupStatusBadge');
+
+        if (countInvEl) countInvEl.innerText = App.state?.invoices?.length || 0;
+        if (countCustEl) countCustEl.innerText = App.state?.customers?.length || 0;
+
+        const last = App.state?.last_local_backup;
+        if (lastEl) {
+          if (last && last.timestamp) {
+            lastEl.innerText = `${last.timestamp} (${last.fileName || 'ไฟล์ JSON'})`;
+          } else {
+            lastEl.innerText = 'ยังไม่มีการสำรองข้อมูลในเครื่องนี้';
+          }
+        }
+        if (badgeEl) {
+          if (last && last.timestamp) {
+            badgeEl.innerText = '✓ สำรองแล้ว';
+            badgeEl.style.color = '#34d399';
+            badgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
+            badgeEl.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+          }
         }
       },
 
@@ -8128,6 +8502,11 @@ END $$;
         if (typeof SupabaseSync !== 'undefined' && SupabaseSync.init) {
           SupabaseSync.init();
         }
+
+        // Initialize Local Backup Status
+        if (typeof DataManager !== 'undefined' && DataManager.updateBackupStatusUI) {
+          DataManager.updateBackupStatusUI();
+        }
       },
 
       getBundledInvoicesFor(inv) {
@@ -8655,6 +9034,9 @@ END $$;
           BankAccountsManager.renderSettingsList();
           if (typeof AccountSecurity !== 'undefined' && AccountSecurity.init) {
             AccountSecurity.init();
+          }
+          if (typeof DataManager !== 'undefined' && DataManager.updateBackupStatusUI) {
+            DataManager.updateBackupStatusUI();
           }
         }
       }
