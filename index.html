@@ -10978,6 +10978,7 @@ END $$;
       targetInvoiceId: null,
       passedSlipData: null,
       proofDataUrl: null,
+      isSubmitting: false,
 
       MODELS_LIST: [
         'gemini-3.6-flash',
@@ -11244,9 +11245,32 @@ END $$;
           '<span>🤖 AI Vision กำลังอ่านและสกัดข้อมูลจากภาพสลิป / เช็ค (OCR Processing)...</span>' +
           '</div>';
 
+        // Auto-render page 1 of PDF e-slips into crisp image before OCR
+        if (file.type === 'application/pdf' || (file.name && file.name.toLowerCase().endsWith('.pdf'))) {
+          if (typeof pdfjsLib !== 'undefined') {
+            try {
+              const arrayBuffer = await file.arrayBuffer();
+              const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+              const curPage = await pdfDoc.getPage(1);
+              const viewport = curPage.getViewport({ scale: 2.0 });
+              const canvas = document.createElement('canvas');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              const context = canvas.getContext('2d');
+              await curPage.render({ canvasContext: context, viewport: viewport }).promise;
+              const renderedJpg = canvas.toDataURL('image/jpeg', 0.85);
+              this.proofDataUrl = await this.compressImage(renderedJpg, 1280, 0.85);
+              if (previewImg) { previewImg.src = this.proofDataUrl; previewImg.style.display = 'block'; }
+              if (promptText) { promptText.style.display = 'none'; }
+            } catch (pdfErr) {
+              console.warn('PDF slip render fallback:', pdfErr);
+            }
+          }
+        }
+
         const reader = new FileReader();
         reader.onload = async (e) => {
-          const rawDataUrl = e.target.result;
+          const rawDataUrl = this.proofDataUrl || e.target.result;
           // Client-side image compression for fast OCR and compact storage
           this.proofDataUrl = await this.compressImage(rawDataUrl, 1280, 0.85);
           previewImg.src = this.proofDataUrl;
@@ -11414,6 +11438,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
       async handleSubmit(e) {
         e.preventDefault();
+        if (this.isSubmitting) return;
+
         try {
           const custId = document.getElementById('payCustomerSelect')?.value;
           const type = document.getElementById('payTypeSelect')?.value || 'TRANSFER';
@@ -11441,6 +11467,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
               }, 2500);
             }
             return;
+          }
+
+          this.isSubmitting = true;
+          const submitBtn = e.target ? (e.target.querySelector('button[type="submit"]') || document.getElementById('btnSubmitPayment')) : document.getElementById('btnSubmitPayment');
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>⏳ กำลังอัปโหลดหลักฐานและบันทึก...</span>';
           }
 
           const cust = App.state.customers.find(c => c.id === custId) || { name: 'ลูกค้าทั่วไป' };
@@ -11589,6 +11622,13 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         } catch (err) {
           console.error('Payment save error:', err);
           App.showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
+        } finally {
+          this.isSubmitting = false;
+          const submitBtn = e?.target?.querySelector ? (e.target.querySelector('button[type="submit"]') || document.getElementById('btnSubmitPayment')) : document.getElementById('btnSubmitPayment');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '✓ บันทึกรับชำระ (ส่งให้ CEO ตรวจสอบ)';
+          }
         }
       }
     };
@@ -13920,17 +13960,22 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
           DataManager.save(App.state);
 
-          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.client) {
-            SupabaseSync.client.from('invoices').update({
-              slip_data: inv.slip_data,
-              updated_at: inv.updated_at
-            }).eq('id', inv.id).then(() => {});
+          if (typeof SupabaseSync !== 'undefined') {
+            if (SupabaseSync.client) {
+              SupabaseSync.client.from('invoices').update({
+                slip_data: inv.slip_data,
+                updated_at: inv.updated_at
+              }).eq('id', inv.id).then(() => {});
 
-            if (linkedPay) {
-              SupabaseSync.client.from('payments').update({
-                slip_data: linkedPay.slip_data,
-                updated_at: linkedPay.updated_at
-              }).eq('id', linkedPay.id).then(() => {});
+              if (linkedPay) {
+                SupabaseSync.client.from('payments').update({
+                  slip_data: linkedPay.slip_data,
+                  updated_at: linkedPay.updated_at
+                }).eq('id', linkedPay.id).then(() => {});
+              }
+            }
+            if (SupabaseSync.debouncedPush) {
+              SupabaseSync.debouncedPush(App.state, true);
             }
           }
 
