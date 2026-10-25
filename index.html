@@ -7383,6 +7383,10 @@ SELECT table_name, count(*) FILTER (WHERE column_name = 'server_updated_at') AS 
         merged.updated_at = Cr.updated_at;
         return { rec: this.fromRow(table, merged), localContrib, cloudRow: Cr };
       },
+      statusRank(inv) {
+        const r = { PAID: 4, OVERPAID: 4, WAITING_APPROVAL: 3, TRANSFERRED: 3, PARTIAL: 2, UNPAID: 1 };
+        return (r[inv && inv.status] || 0) * 10 + (inv && inv.approved_by ? 1 : 0);
+      },
       contentHash(row) {
         const c = Object.assign({}, row);
         delete c.updated_at;
@@ -7596,7 +7600,8 @@ SELECT table_name, count(*) FILTER (WHERE column_name = 'server_updated_at') AS 
               if (!local) { arr.push(c); idx.set(c.id, c); merged++; return; }
               const ct = Date.parse(c.updated_at || 0) || 0;
               const lt = Date.parse(local.updated_at || 0) || 0;
-              if (ct > lt) {
+              const tieBetter = t === 'invoices' && ct === lt && this.statusRank(c) > this.statusRank(local);
+              if (ct > lt || tieBetter) {
                 const copy = JSON.parse(JSON.stringify(c));
                 this.preserveLocalProof(local, copy);
                 this.replaceInPlace(local, copy);
@@ -7720,6 +7725,23 @@ SELECT table_name, count(*) FILTER (WHERE column_name = 'server_updated_at') AS 
           return 0;
         }
         const m = this.meta.pushed[table][id];
+        // บิลที่เวลาแก้ไขเท่ากันแต่สถานะต่างกัน (ข้อมูลเก่าที่อนุมัติโดยไม่อัปเดตเวลา):
+        // ให้ฉบับที่ "ก้าวหน้ากว่า" ชนะเสมอ (PAID > WAITING > PARTIAL > UNPAID) ไม่ย้อนสถานะ
+        if (table === 'invoices') {
+          const lt0 = Date.parse(local.updated_at || 0) || 0, ct0 = Date.parse(row.updated_at || 0) || 0;
+          if (lt0 === ct0 && this.statusRank(local) > this.statusRank(cloudRec)) {
+            local.updated_at = new Date().toISOString();
+            this.meta.pushed[table][id] = { h: cloudHash, u: row.updated_at || KF_EPOCH, b: this.baseOf(this.toRow(table, cloudRec)) };
+            this.rerun = true;
+            return 0;
+          }
+          if (lt0 === ct0 && this.statusRank(local) < this.statusRank(cloudRec)) {
+            this.preserveLocalProof(local, cloudRec);
+            this.replaceInPlace(local, cloudRec);
+            this.setPushed(table, local);
+            return 1;
+          }
+        }
         const dirty = !m || m.h !== localHash;
         if (dirty && m && m.h === cloudHash) return 0; // Cloud ไม่ได้เปลี่ยนจากที่เคยซิงค์ -> ของเครื่องนี้รอส่งขึ้น
         if (dirty) {
