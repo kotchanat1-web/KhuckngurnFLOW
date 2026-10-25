@@ -4893,6 +4893,46 @@
        JAVASCRIPT ARCHITECTURE (All-in-One Engine)
        ========================================================================== -->
   <script>
+    // ==========================================================================
+    // 0.0 SYNC V2 HELPERS — unique IDs that never collide across devices
+    // ==========================================================================
+    const KF_EPOCH = '2000-01-01T00:00:00.000Z';
+    function kfHash(str, seed = 0) {
+      // cyrb53 — fast 53-bit string hash
+      let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+      const s = String(str);
+      for (let i = 0; i < s.length; i++) {
+        const ch = s.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+    }
+    function kfId(prefix) {
+      let r = '';
+      try { if (window.crypto && crypto.randomUUID) r = crypto.randomUUID().replace(/-/g, ''); } catch (_) {}
+      if (!r) r = Date.now().toString(16) + Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2);
+      return prefix + '-' + r.slice(0, 16).toUpperCase();
+    }
+    function kfReceiptNo() {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, '0');
+      return 'RC-' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) + p(d.getDate()) + '-' +
+        p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
+    }
+    function kfInvoiceId(ivNumber) {
+      const base = 'INV-' + String(ivNumber || '').trim().replace(/[^A-Za-z0-9_-]/g, '_');
+      const taken = (typeof App !== 'undefined' && App.state && Array.isArray(App.state.invoices))
+        ? App.state.invoices.some(i => i && i.id === base) : false;
+      return (!ivNumber || taken) ? kfId('INV') : base;
+    }
+    function kfCustomerId(name) {
+      const norm = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      return norm ? ('CUST-N' + kfHash(norm).toString(36).toUpperCase()) : kfId('CUST');
+    }
+
     /**
      * Khuckngurn Flow - Financial & AI Vision OCR Engine with Invoice IV, Slips, and Cheques
      */
@@ -5022,6 +5062,10 @@
       markChanged(count = 1) {
         this.hasPendingChanges = true;
         this.pendingChangeCount = (this.pendingChangeCount || 0) + count;
+        if (typeof KfSync !== 'undefined' && KfSync.meta) {
+          KfSync.refreshPendingUI(true);
+          KfSync.schedulePush(1500);
+        }
         if (typeof SupabaseSync !== 'undefined' && SupabaseSync.updateHeaderSaveButton) {
           SupabaseSync.updateHeaderSaveButton();
         }
@@ -5047,7 +5091,7 @@
           
           App.state.audit_logs = App.state.audit_logs || [];
           const logEntry = {
-            id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+            id: kfId('LOG'),
             timestamp: App.getLocalDateTimeStr(),
             user: App.state.currentUserRole || 'Admin',
             action: 'LOCAL_BACKUP',
@@ -5124,7 +5168,14 @@
         const reader = new FileReader();
         reader.onload = (e) => {
           try {
-            const parsed = JSON.parse(e.target.result);
+            let parsed = JSON.parse(e.target.result);
+            if (parsed && (parsed.idb_main || parsed.idb_master)) {
+              const a = parsed.idb_main, b = parsed.idb_master;
+              const n = (x) => (x && Array.isArray(x.invoices) ? x.invoices.length : -1) + (x && Array.isArray(x.payments) ? x.payments.length : -1);
+              let pick = n(a) >= n(b) ? a : b;
+              if (!pick && parsed.ls && parsed.ls.khuckngurn_flow_v13_prod) { try { pick = JSON.parse(parsed.ls.khuckngurn_flow_v13_prod); } catch (_) {} }
+              parsed = pick;
+            }
             if (!parsed || (typeof parsed !== 'object')) {
               throw new Error('รูปแบบไฟล์ JSON ไม่ถูกต้อง');
             }
@@ -5171,7 +5222,7 @@
             App.state = data;
             App.state.audit_logs = App.state.audit_logs || [];
             App.state.audit_logs.unshift({
-              id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+              id: kfId('LOG'),
               timestamp: App.getLocalDateTimeStr(),
               user: App.state.currentUserRole || 'Admin',
               action: 'LOCAL_RESTORE_FULL',
@@ -5209,11 +5260,14 @@
                 App.state.invoices.push(incomingInv);
                 addedInvoices++;
               } else {
-                // If existing invoice doesn't have proof or is UNPAID while incoming has proof/PAID, update it
+                // ใหม่กว่าแทนที่ทั้งรายการ / ถ้าในเครื่องไม่มีรูปสลิปแต่ไฟล์สำรองมี -> เติมรูปให้
                 const existing = App.state.invoices[existingIdx];
-                if ((!existing.slip_data?.proof_data_url && incomingInv.slip_data?.proof_data_url) || 
-                    (existing.status === 'UNPAID' && incomingInv.status !== 'UNPAID')) {
-                  App.state.invoices[existingIdx] = { ...existing, ...incomingInv };
+                const inT = Date.parse(incomingInv.updated_at || 0) || 0, exT = Date.parse(existing.updated_at || 0) || 0;
+                if (inT > exT) {
+                  App.state.invoices[existingIdx] = incomingInv;
+                  updatedInvoices++;
+                } else if (!existing.slip_data?.proof_data_url && incomingInv.slip_data?.proof_data_url) {
+                  existing.slip_data = Object.assign({}, existing.slip_data || {}, incomingInv.slip_data);
                   updatedInvoices++;
                 }
               }
@@ -5221,12 +5275,25 @@
 
             // 3. Merge Payments
             (data.payments || []).forEach(incomingPay => {
-              const exists = App.state.payments.find(p => p.id === incomingPay.id || p.payment_number === incomingPay.payment_number);
+              const exists = App.state.payments.find(p => p.id === incomingPay.id);
               if (!exists) {
                 App.state.payments.push(incomingPay);
                 addedPayments++;
+              } else {
+                const inT = Date.parse(incomingPay.updated_at || 0) || 0, exT = Date.parse(exists.updated_at || 0) || 0;
+                if (inT > exT) {
+                  Object.keys(exists).forEach(k => delete exists[k]); Object.assign(exists, incomingPay);
+                } else if (!exists.slip_data?.proof_data_url && incomingPay.slip_data?.proof_data_url) {
+                  exists.slip_data = Object.assign({}, exists.slip_data || {}, incomingPay.slip_data);
+                }
               }
             });
+            ['payment_allocations', 'audit_logs'].forEach(key => {
+              if (!Array.isArray(App.state[key])) App.state[key] = [];
+              const have = new Set(App.state[key].map(r => r && r.id));
+              (data[key] || []).forEach(r => { if (r && r.id && !have.has(r.id)) { App.state[key].push(r); have.add(r.id); } });
+            });
+            if (Array.isArray(data.salespersons) && data.salespersons.length && (!App.state.salespersons || App.state.salespersons.length <= 4)) App.state.salespersons = data.salespersons;
 
             // 4. Merge Bank Accounts
             (data.bank_accounts || []).forEach(incomingAcc => {
@@ -5238,7 +5305,7 @@
 
             App.state.audit_logs = App.state.audit_logs || [];
             App.state.audit_logs.unshift({
-              id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+              id: kfId('LOG'),
               timestamp: App.getLocalDateTimeStr(),
               user: App.state.currentUserRole || 'Admin',
               action: 'LOCAL_RESTORE_MERGE',
@@ -5365,9 +5432,32 @@
         };
       },
 
+      dedupeById(list, prefix) {
+        if (!Array.isArray(list) || list.length < 2) return list;
+        const seen = new Map();
+        const out = [];
+        list.forEach(r => {
+          if (!r || !r.id) { out.push(r); return; }
+          const prev = seen.get(r.id);
+          if (!prev) { seen.set(r.id, r); out.push(r); return; }
+          if (JSON.stringify(prev) === JSON.stringify(r)) return; // ซ้ำเหมือนกันทุกช่อง -> ตัดทิ้ง
+          if (prefix) { r.id = kfId(prefix); seen.set(r.id, r); out.push(r); return; } // id ชนแต่คนละรายการ -> ให้ id ใหม่
+          const keepNew = (Date.parse(r.updated_at || 0) || 0) > (Date.parse(prev.updated_at || 0) || 0);
+          if (keepNew) { Object.keys(prev).forEach(k => delete prev[k]); Object.assign(prev, r); }
+        });
+        list.length = 0;
+        out.forEach(r => list.push(r));
+        return list;
+      },
+
       ensureDataIntegrity(state) {
         if (!state || typeof state !== 'object') state = this.getMasterSeedData();
         if (!Array.isArray(state.invoices)) state.invoices = [];
+        this.dedupeById(state.invoices, null);
+        this.dedupeById(state.payments, null);
+        this.dedupeById(state.customers, null);
+        this.dedupeById(state.payment_allocations, 'ALC');
+        this.dedupeById(state.audit_logs, 'LOG');
         if (!Array.isArray(state.customers)) state.customers = [];
         if (!Array.isArray(state.payments)) state.payments = [];
         if (!Array.isArray(state.payment_allocations)) state.payment_allocations = [];
@@ -5397,12 +5487,12 @@
           inv.total_amount = this.round2(inv.total_amount || 0);
           inv.paid_amount = this.round2(inv.paid_amount || 0);
           inv.outstanding_amount = this.round2(Math.max(0, inv.total_amount - inv.paid_amount));
-          if (!inv.updated_at) inv.updated_at = new Date().toISOString();
+          if (!inv.updated_at) inv.updated_at = KF_EPOCH;
 
           let cust = custMap.get(inv.customer_id) || custByName.get((inv.customer_name || '').trim().toLowerCase());
           if (!cust && inv.customer_name) {
             const nextIdx = state.customers.length + 1;
-            const newId = inv.customer_id || ('CUST-' + String(nextIdx).padStart(3, '0'));
+            const newId = inv.customer_id || kfCustomerId(inv.customer_name);
             const newCode = inv.customer_code || ('AR-' + String(nextIdx).padStart(3, '0'));
             cust = {
               id: newId,
@@ -5410,7 +5500,7 @@
               name: inv.customer_name,
               phone: inv.customer_phone || '-',
               address: inv.customer_address || '-',
-              updated_at: new Date().toISOString()
+              updated_at: KF_EPOCH
             };
             state.customers.push(cust);
             custMap.set(newId, cust);
@@ -5426,12 +5516,12 @@
           p.amount = this.round2(p.amount || 0);
           p.matched_amount = this.round2(p.matched_amount || 0);
           p.unmatched_amount = this.round2(Math.max(0, p.amount - p.matched_amount));
-          if (!p.updated_at) p.updated_at = new Date().toISOString();
+          if (!p.updated_at) p.updated_at = KF_EPOCH;
         });
 
         state.payment_allocations.forEach(a => {
           a.allocated_amount = this.round2(a.allocated_amount || 0);
-          if (!a.updated_at) a.updated_at = new Date().toISOString();
+          if (!a.updated_at) a.updated_at = KF_EPOCH;
         });
 
         // Ensure backward compatibility defaults
@@ -5502,32 +5592,38 @@
         }
 
         state = this.ensureDataIntegrity(state);
-        this.saveLocalOnly(state);
 
-        // Asynchronously hydrate from IndexedDB if available
-        IDBStateStore.get(this.STORAGE_KEY).then(idbState => {
-          if (idbState && App && App.state) {
-            let updated = false;
-            if (Array.isArray(idbState.invoices) && idbState.invoices.length > App.state.invoices.length) {
-              App.state.invoices = idbState.invoices;
-              if (Array.isArray(idbState.customers)) App.state.customers = idbState.customers;
-              updated = true;
-            }
-            if (Array.isArray(idbState.invoices)) {
-              idbState.invoices.forEach(idbInv => {
-                const cur = App.state.invoices.find(i => i.id === idbInv.id);
-                if (cur && idbInv.slip_data?.proof_data_url && !cur.slip_data?.proof_data_url) {
-                  cur.slip_data = idbInv.slip_data;
-                  updated = true;
-                }
-              });
-            }
-            if (updated && typeof App.refreshAllViews === 'function') {
-              DataManager.ensureDataIntegrity(App.state);
-              App.refreshAllViews();
-            }
+        // Merge IndexedDB copy (always full, incl. slip images) record-by-record — never drop local work
+        this.hydrationPromise = IDBStateStore.get(this.STORAGE_KEY).then(idbState => {
+          const target = (typeof App !== 'undefined' && App.state) ? App.state : state;
+          if (!idbState || typeof idbState !== 'object') { DataManager.saveLocalOnly(target); return; }
+          let updated = false;
+          ['invoices', 'payments', 'payment_allocations', 'customers', 'audit_logs', 'deleted_records'].forEach(key => {
+            if (!Array.isArray(idbState[key])) return;
+            if (!Array.isArray(target[key])) target[key] = [];
+            const idx = new Map(target[key].map(r => [r && (r.id || (r.table + ':' + r.id)), r]));
+            idbState[key].forEach(ir => {
+              if (!ir) return;
+              const k = ir.id || (ir.table + ':' + ir.id);
+              const cur = idx.get(k);
+              if (!cur) { target[key].push(ir); idx.set(k, ir); updated = true; return; }
+              const it = Date.parse(ir.updated_at || 0) || 0;
+              const ct = Date.parse(cur.updated_at || 0) || 0;
+              if (it > ct) { Object.keys(cur).forEach(x => delete cur[x]); Object.assign(cur, ir); updated = true; return; }
+              const isd = ir.slip_data, csd = cur.slip_data;
+              if (isd && isd.proof_data_url && !(csd && csd.proof_data_url)) {
+                cur.slip_data = Object.assign({}, csd || {}, { proof_data_url: isd.proof_data_url });
+                updated = true;
+              }
+              if (isd && isd.all_pages && csd && !csd.all_pages) { csd.all_pages = isd.all_pages; updated = true; }
+            });
+          });
+          DataManager.ensureDataIntegrity(target);
+          DataManager.saveLocalOnly(target);
+          if (updated && typeof App !== 'undefined' && App.state && typeof App.refreshAllViews === 'function') {
+            App.refreshAllViews();
           }
-        }).catch(() => {});
+        }).catch(() => { try { DataManager.saveLocalOnly((typeof App !== 'undefined' && App.state) ? App.state : state); } catch (_) {} });
 
         return state;
       },
@@ -5837,6 +5933,208 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
 END $$;
+
+-- ============================================================================
+-- Khuckngurn Flow (กวักเงิน Flow) — SYNC V2 MIGRATION
+-- รันใน Supabase Dashboard -> SQL Editor (รันซ้ำได้ ไม่ลบข้อมูลเดิม)
+--
+-- สิ่งที่ทำ:
+--   1) เพิ่มคอลัมน์ data / deleted_at / server_updated_at ให้ทุกตาราง
+--   2) เวลาแก้ไขฝั่ง Server (trigger) ใช้ดึงข้อมูลเฉพาะส่วนที่เปลี่ยน
+--   3) ฟังก์ชัน kf_upsert: เขียนทีละแถว ไม่ทับข้อมูลที่ใหม่กว่า และแจ้ง error รายแถว
+--   4) ฟังก์ชัน kf_soft_delete: ลบแบบมีร่องรอย (เครื่องอื่นรู้ว่าถูกลบ)
+--   5) ตาราง app_settings (พนักงาน / บัญชีธนาคาร / PIN)
+--   6) ปิดการเขียน snapshot ก้อนใหญ่ (app_state_backup) — กันเครื่องที่ยังใช้โค้ดเก่าเขียนทับ
+--      (ข้อมูลใน snapshot ยังอยู่ครบ โปรแกรมใหม่จะอ่านไปรวมให้อัตโนมัติ 1 ครั้ง)
+-- ============================================================================
+
+-- 1. COLUMNS ------------------------------------------------------------------
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['customers','invoices','payments','payment_allocations','audit_logs'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS data jsonb', t);
+    EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS deleted_at timestamptz', t);
+    EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()', t);
+    EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now()', t);
+    EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS server_updated_at timestamptz DEFAULT now()', t);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.%I (server_updated_at)', 'idx_' || t || '_server_updated_at', t);
+  END LOOP;
+END $$;
+
+-- เลขใบรับเงินเดิมเคยซ้ำกันข้ามเครื่อง -> ยกเลิก UNIQUE (ยังมี index ค้นหาอยู่)
+ALTER TABLE public.payments DROP CONSTRAINT IF EXISTS payments_payment_number_key;
+
+-- 2. SETTINGS TABLE -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  id TEXT PRIMARY KEY,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ,
+  server_updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_app_settings_server_updated_at ON public.app_settings (server_updated_at);
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public access for app_settings" ON public.app_settings;
+CREATE POLICY "Public access for app_settings" ON public.app_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- 3. SERVER TIMESTAMP TRIGGER ----------------------------------------------------
+CREATE OR REPLACE FUNCTION public.kf_touch() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.server_updated_at := clock_timestamp();
+  IF TG_OP = 'INSERT' THEN
+    NEW.created_at := COALESCE(NEW.created_at, now());
+  ELSE
+    NEW.created_at := OLD.created_at;
+  END IF;
+  RETURN NEW;
+END $$;
+
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['customers','invoices','payments','payment_allocations','audit_logs','app_settings'] LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS kf_touch_trg ON public.%I', t);
+    EXECUTE format('CREATE TRIGGER kf_touch_trg BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.kf_touch()', t);
+    -- ลดขนาด WAL: ไม่ต้องเก็บแถวเก่าทั้งแถวในทุกการแก้ไข
+    EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY DEFAULT', t);
+  END LOOP;
+END $$;
+
+-- 4. SAFE ROW UPSERT ---------------------------------------------------------------
+-- p_rows : jsonb array ของแถว (key = ชื่อคอลัมน์)
+-- p_key  : คอลัมน์ที่ใช้ยืนยันว่าเป็น "รายการเดียวกัน" (เช่น iv_number) กันรหัสชนกันข้ามเครื่อง
+-- คืนค่า : {applied:[id], stale:[id], collided:[id], errors:[{id,error}]}
+--   stale    = บน Cloud มีฉบับที่ใหม่กว่า (ไม่เขียนทับ)
+--   collided = id เดียวกันแต่เป็นคนละรายการ (ไม่เขียนทับ)
+CREATE OR REPLACE FUNCTION public.kf_upsert(p_table text, p_rows jsonb, p_key text[] DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  r jsonb; v_id text; v_cols text; v_set text; v_keycond text := ''; v_keycmp text; n int;
+  v_same boolean; v_found boolean; k text;
+  applied text[] := '{}'; stale text[] := '{}'; collided text[] := '{}'; errs jsonb := '[]'::jsonb;
+BEGIN
+  IF p_table NOT IN ('customers','invoices','payments','payment_allocations','audit_logs','app_settings') THEN
+    RAISE EXCEPTION 'kf_upsert: table % not allowed', p_table;
+  END IF;
+
+  SELECT string_agg(quote_ident(column_name), ',' ORDER BY ordinal_position),
+         string_agg(format('%1$I = EXCLUDED.%1$I', column_name), ',' ORDER BY ordinal_position)
+           FILTER (WHERE column_name NOT IN ('id','created_at','deleted_at'))
+    INTO v_cols, v_set
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = p_table AND column_name <> 'server_updated_at';
+
+  IF p_key IS NOT NULL AND array_length(p_key, 1) > 0 THEN
+    FOREACH k IN ARRAY p_key LOOP
+      v_keycond := v_keycond || format(' AND public.%1$I.%2$I IS NOT DISTINCT FROM EXCLUDED.%2$I', p_table, k);
+    END LOOP;
+    SELECT string_agg(format('t.%1$I::text IS NOT DISTINCT FROM ($2->>%1$L)', kk), ' AND ')
+      INTO v_keycmp FROM unnest(p_key) kk;
+  END IF;
+
+  FOR r IN SELECT * FROM jsonb_array_elements(COALESCE(p_rows, '[]'::jsonb)) LOOP
+    v_id := r->>'id';
+    IF v_id IS NULL OR v_id = '' THEN
+      errs := errs || jsonb_build_object('id', NULL, 'error', 'missing id');
+      CONTINUE;
+    END IF;
+    BEGIN
+      EXECUTE format(
+        'INSERT INTO public.%1$I (%2$s) SELECT %2$s FROM jsonb_populate_record(NULL::public.%1$I, $1) '
+        'ON CONFLICT (id) DO UPDATE SET %3$s '
+        'WHERE (public.%1$I.updated_at IS NULL OR EXCLUDED.updated_at IS NULL OR public.%1$I.updated_at <= EXCLUDED.updated_at)%4$s',
+        p_table, v_cols, v_set, v_keycond) USING r;
+      GET DIAGNOSTICS n = ROW_COUNT;
+      IF n > 0 THEN
+        applied := applied || v_id;
+      ELSIF v_keycmp IS NOT NULL THEN
+        EXECUTE format('SELECT true, (%s) FROM public.%I t WHERE t.id = $1', v_keycmp, p_table)
+          INTO v_found, v_same USING v_id, r;
+        IF v_found AND NOT COALESCE(v_same, false) THEN
+          collided := collided || v_id;
+        ELSE
+          stale := stale || v_id;
+        END IF;
+      ELSE
+        stale := stale || v_id;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      errs := errs || jsonb_build_object('id', v_id, 'error', SQLERRM);
+    END;
+  END LOOP;
+
+  RETURN jsonb_build_object('applied', to_jsonb(applied), 'stale', to_jsonb(stale),
+                            'collided', to_jsonb(collided), 'errors', errs);
+END $$;
+
+-- 5. SOFT DELETE -----------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.kf_soft_delete(p_table text, p_ids text[])
+RETURNS int LANGUAGE plpgsql AS $$
+DECLARE n int;
+BEGIN
+  IF p_table NOT IN ('customers','invoices','payments','payment_allocations','audit_logs','app_settings') THEN
+    RAISE EXCEPTION 'kf_soft_delete: table % not allowed', p_table;
+  END IF;
+  EXECUTE format('UPDATE public.%I SET deleted_at = now(), updated_at = now() WHERE id = ANY($1) AND deleted_at IS NULL', p_table)
+    USING p_ids;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.kf_upsert(text, jsonb, text[]) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kf_soft_delete(text, text[]) TO anon, authenticated;
+GRANT ALL ON public.app_settings TO anon, authenticated;
+
+-- 6. BLOCK OLD SNAPSHOT WRITES ---------------------------------------------------
+-- เครื่องที่ยังเปิดโปรแกรมเวอร์ชันเก่าจะบันทึกขึ้น Cloud ไม่ได้ (ข้อมูลยังอยู่ในเครื่อง)
+-- พอรีเฟรชเป็นเวอร์ชันใหม่ ข้อมูลจะถูกส่งขึ้นแบบปลอดภัยเอง
+CREATE OR REPLACE FUNCTION public.kf_block_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'KF_SYNC_V2: ระบบอัปเดตเป็น Sync v2 แล้ว กรุณารีเฟรชหน้าเว็บ (Ctrl+F5)';
+END $$;
+DROP TRIGGER IF EXISTS kf_block_snapshot_trg ON public.app_state_backup;
+CREATE TRIGGER kf_block_snapshot_trg BEFORE INSERT OR UPDATE ON public.app_state_backup
+  FOR EACH ROW EXECUTE FUNCTION public.kf_block_snapshot();
+
+-- 7. REALTIME PUBLICATION ---------------------------------------------------------
+DO $$
+BEGIN
+  BEGIN ALTER PUBLICATION supabase_realtime DROP TABLE public.app_state_backup; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime DROP TABLE public.audit_logs;       EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;      EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;         EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;          EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.payments;          EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.payment_allocations; EXCEPTION WHEN OTHERS THEN NULL; END;
+END $$;
+
+-- 8. STORAGE BUCKET 'proofs' (เก็บรูปสลิปเป็นไฟล์ ไม่เก็บในฐานข้อมูล) ------------------------
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    EXECUTE $q$INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('proofs', 'proofs', true, 10485760, ARRAY['image/jpeg','image/png','image/webp','application/pdf'])
+      ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 10485760,
+        allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp','application/pdf']$q$;
+    EXECUTE 'DROP POLICY IF EXISTS "Public read access for proofs" ON storage.objects';
+    EXECUTE 'DROP POLICY IF EXISTS "Public insert access for proofs" ON storage.objects';
+    EXECUTE 'DROP POLICY IF EXISTS "Public update access for proofs" ON storage.objects';
+    EXECUTE $q$CREATE POLICY "Public read access for proofs" ON storage.objects FOR SELECT USING (bucket_id = 'proofs')$q$;
+    EXECUTE $q$CREATE POLICY "Public insert access for proofs" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'proofs')$q$;
+    EXECUTE $q$CREATE POLICY "Public update access for proofs" ON storage.objects FOR UPDATE USING (bucket_id = 'proofs') WITH CHECK (bucket_id = 'proofs')$q$;
+  END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ตรวจผล: ต้องเห็น 6 ตารางและคอลัมน์ server_updated_at
+SELECT table_name, count(*) FILTER (WHERE column_name = 'server_updated_at') AS has_server_ts
+  FROM information_schema.columns
+ WHERE table_schema = 'public'
+   AND table_name IN ('customers','invoices','payments','payment_allocations','audit_logs','app_settings')
+ GROUP BY table_name ORDER BY table_name;
 `;
 
     const SupabaseSync = {
@@ -6037,8 +6335,12 @@ END $$;
           }
         } catch (_) {}
 
-        // 4. Try uploading to Supabase Storage Bucket ('proofs')
-        if (this.client && this.isConnected && typeof compressedDataUrl === 'string' && compressedDataUrl.startsWith('data:')) {
+        // 4. Sync v2: upload with content-hash file name (same image = same file)
+        if (typeof KfSync !== 'undefined' && this.client && this.isConnected && typeof compressedDataUrl === 'string' && compressedDataUrl.startsWith('data:')) {
+          const hashedUrl = await KfSync.uploadDataUrl(compressedDataUrl);
+          return hashedUrl || compressedDataUrl;
+        }
+        if (false) {
           try {
             const parts = compressedDataUrl.split(',');
             const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -6881,6 +7183,852 @@ END $$;
         }
       }
     };
+
+
+    // ==========================================================================
+    // 1.2 SYNC V2 ENGINE — row-level, conflict-safe, visible errors, auto-retry
+    // (แทนที่ระบบ snapshot ก้อนเดียว: ส่งเฉพาะรายการที่แก้ ไม่เขียนทับของใหม่กว่า)
+    // ==========================================================================
+    const KF_TABLES = {
+      invoices: {
+        stateKey: 'invoices', key: ['iv_number'], heavy: ['raw_content', 'items', 'slip_data'],
+        cols: ['id', 'iv_number', 'doc_type', 'customer_id', 'customer_name', 'invoice_date', 'due_date', 'delivery_vehicle',
+          'salesperson', 'total_amount', 'paid_amount', 'outstanding_amount', 'status', 'items', 'amount_text', 'raw_content',
+          'source_file', 'slip_data', 'approved_by', 'approved_at', 'notes', 'updated_at']
+      },
+      payments: {
+        stateKey: 'payments', key: null, heavy: ['slip_data'],
+        cols: ['id', 'payment_number', 'customer_id', 'payment_date', 'payment_type', 'amount', 'matched_amount', 'unmatched_amount',
+          'reference_number', 'bank_account', 'note', 'slip_data', 'matched_invoices', 'updated_at']
+      },
+      payment_allocations: {
+        stateKey: 'payment_allocations', key: ['payment_id', 'invoice_id'], heavy: [],
+        cols: ['id', 'payment_id', 'invoice_id', 'allocated_amount', 'updated_at']
+      },
+      customers: {
+        stateKey: 'customers', key: null, heavy: [],
+        cols: ['id', 'code', 'name', 'phone', 'address', 'updated_at']
+      },
+      audit_logs: {
+        stateKey: 'audit_logs', key: ['action', 'record_id'], heavy: [],
+        cols: ['id', 'timestamp', 'user_name', 'action', 'table_name', 'record_id', 'detail', 'updated_at']
+      }
+    };
+    const KF_SETTINGS = ['salespersons', 'companyBankAccounts', 'pins'];
+
+    const KfSync = {
+      META_KEY: 'kf_sync_meta_v2',
+      meta: null,
+      ready: false,
+      running: false,
+      rerun: false,
+      pushTimer: null,
+      pullTimer: null,
+      pendingPull: false,
+      retryTimer: null,
+      refreshTimer: null,
+      noStamp: new Set(),
+      touched: new Set(),
+      lastError: null,
+      lastErrorToastAt: 0,
+      v2Ready: false,
+
+      // ---------- meta ----------
+      emptyMeta() {
+        const pushed = {};
+        Object.keys(KF_TABLES).forEach(t => { pushed[t] = {}; });
+        return { version: 2, pushed, cursor: {}, settings: {}, snapshotImported: false };
+      },
+      async loadMeta() {
+        let m = null;
+        try { m = await IDBStateStore.get(this.META_KEY); } catch (_) {}
+        if (!m) { try { m = JSON.parse(localStorage.getItem(this.META_KEY) || 'null'); } catch (_) {} }
+        this.meta = (m && m.version === 2) ? m : this.emptyMeta();
+        Object.keys(KF_TABLES).forEach(t => { if (!this.meta.pushed[t]) this.meta.pushed[t] = {}; });
+        if (!this.meta.cursor) this.meta.cursor = {};
+        if (!this.meta.settings) this.meta.settings = {};
+      },
+      async saveMeta() {
+        if (!this.meta) return;
+        try { await IDBStateStore.set(this.META_KEY, this.meta); } catch (_) {}
+      },
+
+      // ---------- row mapping ----------
+      stripDataUrls(obj) {
+        return JSON.parse(JSON.stringify(obj === undefined ? null : obj, (k, v) =>
+          (typeof v === 'string' && v.startsWith('data:') && v.length > 2000) ? null : v));
+      },
+      slipForCloud(s) {
+        if (!s || typeof s !== 'object') return s || null;
+        const c = Object.assign({}, s);
+        if (c.all_pages && typeof c.all_pages === 'object') {
+          const n = Object.keys(c.all_pages).length;
+          if (n) c.has_pdf_pages = n;
+        }
+        delete c.all_pages;
+        if (typeof c.original_file_url === 'string' && c.original_file_url.startsWith('data:')) c.original_file_url = null;
+        if (typeof c.proof_data_url === 'string' && c.proof_data_url.startsWith('data:')) {
+          c.proof_data_url = null;
+          c.proof_pending_upload = true;
+        }
+        return this.stripDataUrls(c);
+      },
+      toRow(table, rec) {
+        const r2 = (n) => DataManager.round2(n);
+        const str = (v) => (v === undefined || v === null) ? '' : String(v);
+        const cfg = KF_TABLES[table];
+        const rest = {};
+        Object.keys(rec || {}).forEach(k => {
+          if (cfg.cols.includes(k) || k === 'user' || k === 'data') return;
+          rest[k] = rec[k];
+        });
+        const data = this.stripDataUrls(rest);
+        const upd = rec.updated_at || KF_EPOCH;
+        if (table === 'invoices') {
+          return {
+            id: rec.id, iv_number: str(rec.iv_number || rec.id), doc_type: rec.doc_type || 'ใบส่งของชั่วคราว',
+            customer_id: rec.customer_id || null, customer_name: str(rec.customer_name),
+            invoice_date: str(rec.invoice_date), due_date: str(rec.due_date), delivery_vehicle: str(rec.delivery_vehicle),
+            salesperson: str(rec.salesperson), total_amount: r2(rec.total_amount), paid_amount: r2(rec.paid_amount),
+            outstanding_amount: r2(rec.outstanding_amount), status: rec.status || 'UNPAID',
+            items: this.stripDataUrls(rec.items || []), amount_text: str(rec.amount_text), raw_content: str(rec.raw_content),
+            source_file: str(rec.source_file), slip_data: this.slipForCloud(rec.slip_data),
+            approved_by: rec.approved_by || null, approved_at: rec.approved_at ? String(rec.approved_at) : null,
+            notes: str(rec.notes), updated_at: upd, data
+          };
+        }
+        if (table === 'payments') {
+          return {
+            id: rec.id, payment_number: str(rec.payment_number || rec.id), customer_id: rec.customer_id || null,
+            payment_date: str(rec.payment_date), payment_type: rec.payment_type || 'TRANSFER', amount: r2(rec.amount),
+            matched_amount: r2(rec.matched_amount), unmatched_amount: r2(rec.unmatched_amount),
+            reference_number: str(rec.reference_number), bank_account: str(rec.bank_account), note: str(rec.note),
+            slip_data: this.slipForCloud(rec.slip_data), matched_invoices: rec.matched_invoices || [], updated_at: upd, data
+          };
+        }
+        if (table === 'payment_allocations') {
+          return { id: rec.id, payment_id: str(rec.payment_id), invoice_id: str(rec.invoice_id),
+            allocated_amount: r2(rec.allocated_amount), updated_at: upd, data };
+        }
+        if (table === 'customers') {
+          return { id: rec.id, code: str(rec.code), name: str(rec.name) || '-', phone: str(rec.phone),
+            address: str(rec.address), updated_at: upd, data };
+        }
+        // audit_logs
+        return { id: rec.id, timestamp: str(rec.timestamp), user_name: str(rec.user || rec.user_name), action: str(rec.action),
+          table_name: str(rec.table_name), record_id: str(rec.record_id), detail: str(rec.detail), updated_at: upd, data };
+      },
+      fromRow(table, row) {
+        const cfg = KF_TABLES[table];
+        const rec = (row.data && typeof row.data === 'object' && !Array.isArray(row.data)) ? Object.assign({}, row.data) : {};
+        cfg.cols.forEach(c => {
+          if (c === 'user_name') return;
+          if (row[c] !== undefined) rec[c] = row[c];
+        });
+        ['total_amount', 'paid_amount', 'outstanding_amount', 'amount', 'matched_amount', 'unmatched_amount', 'allocated_amount']
+          .forEach(k => { if (rec[k] !== undefined && rec[k] !== null) rec[k] = DataManager.round2(rec[k]); });
+        if (table === 'audit_logs') rec.user = row.user_name || '';
+        if (rec.slip_data && typeof rec.slip_data === 'object') delete rec.slip_data.proof_pending_upload;
+        return rec;
+      },
+      // ---------- field-level (3-way) merge helpers ----------
+      flatRow(row) {
+        const out = {};
+        Object.keys(row || {}).forEach(k => {
+          if (k === 'updated_at') return;
+          if (k === 'data' && row.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
+            Object.keys(row.data).forEach(dk => { out['data.' + dk] = row.data[dk]; });
+          } else {
+            out[k] = row[k];
+          }
+        });
+        return out;
+      },
+      hv(v) { return kfHash(JSON.stringify(v === undefined ? null : v)); },
+      baseOf(row) {
+        const f = this.flatRow(row);
+        const b = {};
+        Object.keys(f).forEach(k => { b[k] = this.hv(f[k]); });
+        return b;
+      },
+      mkMeta(table, rec, row) {
+        const r = row || this.toRow(table, rec);
+        return { h: this.contentHash(r), u: rec.updated_at || KF_EPOCH, b: this.baseOf(r) };
+      },
+      // รวมการแก้ไข: ช่องที่เครื่องนี้แก้ + ช่องที่เครื่องอื่นแก้ เก็บไว้ทั้งคู่
+      // ถ้าแก้ช่องเดียวกันทั้งสองฝั่ง -> ใช้ฉบับที่แก้ทีหลัง
+      mergeRecords(table, local, cloudRec, m) {
+        if (!m || !m.b) return null;
+        const L = this.flatRow(this.toRow(table, local));
+        const Cr = this.toRow(table, cloudRec);
+        const Cf = this.flatRow(Cr);
+        const B = m.b;
+        const localNewer = (Date.parse(local.updated_at || 0) || 0) > (Date.parse(cloudRec.updated_at || 0) || 0);
+        const keys = new Set([...Object.keys(L), ...Object.keys(Cf)]);
+        const merged = { data: {} };
+        let localContrib = false;
+        keys.forEach(k => {
+          const bh = B[k] !== undefined ? B[k] : this.hv(undefined);
+          const lCh = this.hv(L[k]) !== bh;
+          const cCh = this.hv(Cf[k]) !== bh;
+          let v;
+          if (lCh && !cCh) v = L[k];
+          else if (lCh && cCh) v = localNewer ? L[k] : Cf[k];
+          else v = Cf[k];
+          if (this.hv(v) !== this.hv(Cf[k])) localContrib = true;
+          if (v === undefined) return;
+          if (k.startsWith('data.')) merged.data[k.slice(5)] = v; else merged[k] = v;
+        });
+        merged.id = cloudRec.id;
+        merged.updated_at = Cr.updated_at;
+        return { rec: this.fromRow(table, merged), localContrib, cloudRow: Cr };
+      },
+      contentHash(row) {
+        const c = Object.assign({}, row);
+        delete c.updated_at;
+        return kfHash(JSON.stringify(c));
+      },
+      list(table) {
+        const key = KF_TABLES[table].stateKey;
+        if (!Array.isArray(App.state[key])) App.state[key] = [];
+        return App.state[key];
+      },
+      replaceInPlace(target, src) {
+        Object.keys(target).forEach(k => { delete target[k]; });
+        Object.assign(target, src);
+      },
+      preserveLocalProof(local, cloudRec) {
+        const ls = local && local.slip_data;
+        if (!ls || typeof ls !== 'object') return false;
+        let kept = false;
+        if (ls.proof_data_url && !(cloudRec.slip_data && cloudRec.slip_data.proof_data_url)) {
+          cloudRec.slip_data = Object.assign({}, cloudRec.slip_data || {}, { proof_data_url: ls.proof_data_url });
+          kept = true;
+        }
+        if (ls.all_pages && cloudRec.slip_data && !cloudRec.slip_data.all_pages) cloudRec.slip_data.all_pages = ls.all_pages;
+        if (ls.original_file_url && cloudRec.slip_data && !cloudRec.slip_data.original_file_url) cloudRec.slip_data.original_file_url = ls.original_file_url;
+        return kept;
+      },
+      tombstones() {
+        if (!Array.isArray(App.state.deleted_records)) App.state.deleted_records = [];
+        return App.state.deleted_records;
+      },
+      isTombstoned(table, id) {
+        return this.tombstones().some(t => t.table === table && t.id === id);
+      },
+
+      // ---------- settings ----------
+      settingData(id) {
+        const s = App.state;
+        if (id === 'pins') return { adminPin: s.adminPin || '0318', ceoPin: s.ceoPin || '9999', staffPin: s.staffPin || '1234' };
+        return { list: Array.isArray(s[id]) ? s[id] : [] };
+      },
+      applySettingData(id, data) {
+        if (!data || typeof data !== 'object') return;
+        if (id === 'pins') {
+          if (data.adminPin) App.state.adminPin = data.adminPin;
+          if (data.ceoPin) App.state.ceoPin = data.ceoPin;
+          if (data.staffPin) App.state.staffPin = data.staffPin;
+        } else if (Array.isArray(data.list) && data.list.length > 0) {
+          App.state[id] = data.list;
+        }
+      },
+
+      // ---------- dirty tracking ----------
+      dirtyCount() {
+        if (!this.meta || !App.state) return 0;
+        let n = 0;
+        Object.keys(KF_TABLES).forEach(t => {
+          const pushed = this.meta.pushed[t];
+          this.list(t).forEach(rec => {
+            if (!rec || !rec.id) return;
+            const m = pushed[rec.id];
+            if (!m || m.h !== this.contentHash(this.toRow(t, rec))) n++;
+          });
+        });
+        KF_SETTINGS.forEach(id => {
+          const m = this.meta.settings[id];
+          if (!m || m.h !== kfHash(JSON.stringify(this.settingData(id)))) n++;
+        });
+        return n + this.tombstones().length;
+      },
+      refreshPendingUI(stamp = false) {
+        try {
+          if (stamp) this.stampUntimedEdits();
+          const n = this.dirtyCount();
+          DataManager.pendingChangeCount = n;
+          DataManager.hasPendingChanges = n > 0;
+          SupabaseSync.updateHeaderSaveButton();
+        } catch (e) { console.warn('pending count', e); }
+      },
+
+      // ---------- scheduling ----------
+      schedulePush(delay = 1200) {
+        if (this.pushTimer) clearTimeout(this.pushTimer);
+        this.pushTimer = setTimeout(() => { this.pushTimer = null; this.syncNow({ push: true }); }, delay);
+      },
+      schedulePull(delay = 1500) {
+        if (this.pullTimer) clearTimeout(this.pullTimer);
+        this.pullTimer = setTimeout(() => { this.pullTimer = null; this.syncNow({ pull: true, push: true }); }, delay);
+      },
+      startTimers() {
+        if (this.retryTimer) return;
+        let tick = 0;
+        this.retryTimer = setInterval(() => {
+          tick++;
+          if (!SupabaseSync.client || !navigator.onLine) return;
+          if (!SupabaseSync.isConnected) { if (tick % 2 === 0) SupabaseSync.testAndConnect(false); return; }
+          if ((DataManager.pendingChangeCount || 0) > 0) this.syncNow({ push: true });
+          if (tick % 6 === 0) this.syncNow({ pull: true, push: true }); // ทุก ~3 นาที กันกรณี realtime หลุด
+        }, 30000);
+      },
+
+      // ---------- main runner ----------
+      async syncNow(opts = {}) {
+        const o = Object.assign({ pull: false, push: true, manual: false }, opts);
+        if (!this.v2Ready || !SupabaseSync.client || !SupabaseSync.isConnected) {
+          this.refreshPendingUI();
+          if (o.manual) App.showToast('ยังเชื่อมต่อ Cloud ไม่ได้ — ข้อมูลยังเก็บอยู่ในเครื่อง ระบบจะลองส่งใหม่อัตโนมัติ', 'warning');
+          return { ok: false };
+        }
+        if (this.running) {
+          this.rerun = true;
+          if (o.pull) this.pendingPull = true;
+          return { ok: false, queued: true };
+        }
+        this.running = true;
+        SupabaseSync.isSyncing = true;
+        SupabaseSync.updateStatusBadge('syncing', 'กำลังซิงค์กับ Cloud...');
+        let result = { ok: true, pulled: 0, pushed: 0, errors: [] };
+        try {
+          if (!this.meta.snapshotImported) await this.importLegacySnapshotOnce();
+          if (o.pull || o.push || this.pendingPull || !this.meta.cursor.invoices) {
+            this.pendingPull = false;
+            result.pulled = await this.pullAll();
+            this.normalizeTouched();
+          }
+          if (o.push) {
+            await this.uploadPendingSlips();
+            const pr = await this.pushAll();
+            result.pushed = pr.applied;
+            result.errors = pr.errors;
+            result.pulled += pr.refetched;
+            this.normalizeTouched();
+          }
+          await this.saveMeta();
+          DataManager.saveLocalOnly(App.state);
+          SupabaseSync.lastSyncTime = new Date();
+          this.lastError = result.errors.length ? result.errors[0] : null;
+          if (result.errors.length) {
+            const readOnly = result.errors.some(e => /read-only|read only/i.test(e.error || ''));
+            SupabaseSync.updateStatusBadge('error', readOnly ? 'Cloud เต็ม — ข้อมูลรอส่งอยู่ในเครื่อง' : `ส่งไม่ผ่าน ${result.errors.length} รายการ`);
+            this.toastError(readOnly
+              ? '❌ ฐานข้อมูล Cloud เต็ม (โหมดอ่านอย่างเดียว) — ข้อมูลยังเก็บในเครื่องครบ จะส่งให้อัตโนมัติเมื่อเคลียร์พื้นที่แล้ว'
+              : `⚠️ ส่งขึ้น Cloud ไม่ผ่าน ${result.errors.length} รายการ: ${result.errors[0].error}`);
+          } else {
+            SupabaseSync.updateStatusBadge('connected', `ซิงค์แล้ว (${SupabaseSync.formatTime(SupabaseSync.lastSyncTime)})`);
+            if (result.pushed > 0 || o.manual) {
+              App.showToast(`☁️ ส่งขึ้น Cloud แล้ว ${result.pushed} รายการ`, 'success');
+            }
+          }
+          if (result.pulled > 0) this.safeRefresh();
+        } catch (err) {
+          result.ok = false;
+          console.error('KfSync error:', err);
+          const msg = (err && (err.message || err.error_description || err.hint)) || String(err);
+          this.lastError = { error: msg };
+          SupabaseSync.updateStatusBadge('error', 'ซิงค์ไม่สำเร็จ (ข้อมูลยังอยู่ในเครื่อง)');
+          if (/read-only|read only|25006/i.test(msg)) {
+            this.toastError('❌ ฐานข้อมูล Cloud เต็ม (โหมดอ่านอย่างเดียว) — ข้อมูลยังเก็บในเครื่องครบ กรุณาเคลียร์พื้นที่ Supabase ตามคู่มือ');
+          } else {
+            this.toastError('❌ ส่งขึ้น Cloud ไม่สำเร็จ: ' + msg + ' — ข้อมูลยังอยู่ในเครื่อง ระบบจะลองใหม่ทุก 30 วินาที');
+          }
+          try { await this.saveMeta(); } catch (_) {}
+        } finally {
+          this.running = false;
+          SupabaseSync.isSyncing = false;
+          this.refreshPendingUI();
+          if (this.rerun) {
+            this.rerun = false;
+            setTimeout(() => this.syncNow({ push: true, pull: this.pendingPull }), 300);
+          }
+        }
+        return result;
+      },
+      toastError(msg) {
+        const now = Date.now();
+        if (now - this.lastErrorToastAt < 20000) return;
+        this.lastErrorToastAt = now;
+        App.showToast(msg, 'error');
+      },
+      safeRefresh() {
+        const busy = () => {
+          const ae = document.activeElement;
+          const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
+          const modal = Array.from(document.querySelectorAll('.modal-backdrop.active'))
+            .some(m => m.id !== 'ceoFastApprovalModal' && m.id !== 'ceoSlipZoomModal');
+          return typing || modal;
+        };
+        if (this.refreshTimer) { clearTimeout(this.refreshTimer); this.refreshTimer = null; }
+        if (busy()) {
+          if (typeof App.updateSidebarBadges === 'function') App.updateSidebarBadges();
+          this.refreshTimer = setTimeout(() => this.safeRefresh(), 2500);
+          return;
+        }
+        DataManager.ensureDataIntegrity(App.state);
+        App.refreshAllViews();
+      },
+
+      // ---------- legacy snapshot (one time) ----------
+      async importLegacySnapshotOnce() {
+        const { data, error } = await SupabaseSync.client.from('app_state_backup').select('state_data').eq('id', 'main_state').maybeSingle();
+        if (error && !/does not exist|PGRST205|42P01/i.test(error.message || '')) throw error;
+        const s = data && data.state_data;
+        let merged = 0;
+        if (s && typeof s === 'object') {
+          Object.keys(KF_TABLES).forEach(t => {
+            const cloudList = Array.isArray(s[KF_TABLES[t].stateKey]) ? s[KF_TABLES[t].stateKey] : [];
+            const arr = this.list(t);
+            const idx = new Map(arr.map(r => [r && r.id, r]));
+            cloudList.forEach(c => {
+              if (!c || !c.id || this.isTombstoned(t, c.id)) return;
+              const local = idx.get(c.id);
+              if (!local) { arr.push(c); idx.set(c.id, c); merged++; return; }
+              const ct = Date.parse(c.updated_at || 0) || 0;
+              const lt = Date.parse(local.updated_at || 0) || 0;
+              if (ct > lt) {
+                const copy = JSON.parse(JSON.stringify(c));
+                this.preserveLocalProof(local, copy);
+                this.replaceInPlace(local, copy);
+                merged++;
+              }
+            });
+          });
+          if (Array.isArray(s.salespersons) && s.salespersons.length) App.state.salespersons = s.salespersons;
+          if (Array.isArray(s.companyBankAccounts) && s.companyBankAccounts.length) App.state.companyBankAccounts = s.companyBankAccounts;
+          if (s.adminPin) App.state.adminPin = s.adminPin;
+          if (s.ceoPin) App.state.ceoPin = s.ceoPin;
+          if (s.staffPin) App.state.staffPin = s.staffPin;
+        }
+        this.meta.snapshotImported = true;
+        await this.saveMeta();
+        DataManager.ensureDataIntegrity(App.state);
+        DataManager.saveLocalOnly(App.state);
+        console.log(`KfSync: legacy snapshot imported (${merged} records merged)`);
+        return merged;
+      },
+
+      // ---------- pull ----------
+      async pullAll() {
+        let changed = 0;
+        for (const t of Object.keys(KF_TABLES)) changed += await this.pullTable(t);
+        changed += await this.pullSettings();
+        return changed;
+      },
+      async fetchRows(table, sinceIso) {
+        const page = 500;
+        let from = 0;
+        const out = [];
+        for (;;) {
+          let q = SupabaseSync.client.from(table).select('*')
+            .order('server_updated_at', { ascending: true }).order('id', { ascending: true })
+            .range(from, from + page - 1);
+          if (sinceIso) q = q.gte('server_updated_at', sinceIso);
+          const { data, error } = await q;
+          if (error) throw error;
+          out.push(...(data || []));
+          if (!data || data.length < page) break;
+          from += page;
+        }
+        return out;
+      },
+      async pullTable(table) {
+        const cur = this.meta.cursor[table];
+        const since = cur ? new Date(new Date(cur).getTime() - 120000).toISOString() : null;
+        const rows = await this.fetchRows(table, since);
+        let changed = 0;
+        let maxTs = cur || null;
+        const index = new Map(this.list(table).map(r => [r && r.id, r]));
+        rows.forEach(row => {
+          changed += this.applyCloudRow(table, row, index);
+          if (row.server_updated_at && (!maxTs || new Date(row.server_updated_at) > new Date(maxTs))) maxTs = row.server_updated_at;
+        });
+        if (maxTs) this.meta.cursor[table] = maxTs;
+        return changed;
+      },
+      setPushed(table, rec) {
+        this.meta.pushed[table][rec.id] = this.mkMeta(table, rec);
+        this.touched.add(table + ':' + rec.id);
+      },
+      // ข้อมูลที่เพิ่งรับจาก Cloud ผ่าน ensureDataIntegrity แล้วอาจถูกจัดรูปใหม่ (ปัดเศษ/ชื่อลูกค้า)
+      // -> ถือว่าเป็นฉบับเดียวกับ Cloud ไม่ต้องส่งกลับ และไม่ประทับเวลาใหม่
+      normalizeTouched() {
+        if (!this.touched.size) return;
+        DataManager.ensureDataIntegrity(App.state);
+        Object.keys(KF_TABLES).forEach(t => {
+          this.list(t).forEach(rec => {
+            if (!rec || !rec.id) return;
+            const k = t + ':' + rec.id;
+            if (!this.touched.has(k) || this.noStamp.has(k)) return;
+            this.meta.pushed[t][rec.id] = this.mkMeta(t, rec);
+          });
+        });
+        this.touched.clear();
+      },
+      // ประทับเวลาให้รายการที่ถูกแก้ แต่โค้ดส่วนนั้นลืมอัปเดต updated_at (ใช้เวลาที่แก้จริง)
+      stampUntimedEdits() {
+        if (!this.meta || !App.state) return;
+        const nowIso = new Date().toISOString();
+        Object.keys(KF_TABLES).forEach(t => {
+          const pushed = this.meta.pushed[t];
+          this.list(t).forEach(rec => {
+            if (!rec || !rec.id) return;
+            const m = pushed[rec.id];
+            if (!m || this.noStamp.has(t + ':' + rec.id)) return;
+            if (rec.updated_at && rec.updated_at !== m.u) return;
+            if (m.h !== this.contentHash(this.toRow(t, rec))) rec.updated_at = nowIso;
+          });
+        });
+      },
+      applyCloudRow(table, row, index) {
+        const arr = this.list(table);
+        const id = row.id;
+        if (!id) return 0;
+        const local = index ? index.get(id) : arr.find(r => r && r.id === id);
+        if (row.deleted_at) {
+          delete this.meta.pushed[table][id];
+          if (local) {
+            const i = arr.indexOf(local);
+            if (i >= 0) arr.splice(i, 1);
+            if (index) index.delete(id);
+            return 1;
+          }
+          return 0;
+        }
+        if (this.isTombstoned(table, id)) return 0;
+        const cloudRec = this.fromRow(table, row);
+        if (!local) {
+          if (table === 'invoices' || table === 'payments' || table === 'audit_logs') arr.unshift(cloudRec); else arr.push(cloudRec);
+          if (index) index.set(id, cloudRec);
+          this.setPushed(table, cloudRec);
+          return 1;
+        }
+        const localHash = this.contentHash(this.toRow(table, local));
+        const cloudHash = this.contentHash(this.toRow(table, cloudRec));
+        if (localHash === cloudHash) {
+          this.meta.pushed[table][id] = this.mkMeta(table, local);
+          return 0;
+        }
+        const m = this.meta.pushed[table][id];
+        const dirty = !m || m.h !== localHash;
+        if (dirty && m && m.h === cloudHash) return 0; // Cloud ไม่ได้เปลี่ยนจากที่เคยซิงค์ -> ของเครื่องนี้รอส่งขึ้น
+        if (dirty) {
+          // ทั้งเครื่องนี้และเครื่องอื่นแก้รายการเดียวกัน -> รวมทีละช่อง ไม่ทับกัน
+          const mg = this.mergeRecords(table, local, cloudRec, m);
+          if (mg) {
+            this.preserveLocalProof(local, mg.rec);
+            this.replaceInPlace(local, mg.rec);
+            if (mg.localContrib) {
+              this.meta.pushed[table][id] = { h: cloudHash, u: mg.rec.updated_at || KF_EPOCH, b: this.baseOf(mg.cloudRow) };
+              local.updated_at = new Date().toISOString(); // ฉบับรวมใหม่ล่าสุด -> ส่งขึ้น
+              this.noStamp.delete(table + ':' + id);
+              this.mergedCount = (this.mergedCount || 0) + 1;
+              this.rerun = true;
+            } else {
+              this.setPushed(table, local);
+            }
+            return 1;
+          }
+          const lt = Date.parse(local.updated_at || 0) || 0;
+          const ct = Date.parse(row.updated_at || 0) || 0;
+          if (lt > ct) return 0; // (ยังไม่มีฐานเทียบ) ของในเครื่องใหม่กว่า — รอส่งขึ้น
+        }
+        const cloudHadProof = !!(cloudRec.slip_data && cloudRec.slip_data.proof_data_url);
+        const kept = this.preserveLocalProof(local, cloudRec);
+        this.replaceInPlace(local, cloudRec);
+        if (kept && !cloudHadProof && /^https?:/.test(local.slip_data.proof_data_url || '')) {
+          // Cloud ยังไม่มีรูป แต่เครื่องนี้มีลิงก์รูปแล้ว -> ส่งลิงก์ขึ้นโดยไม่เปลี่ยนเวลา (ไม่ทับข้อมูลคนอื่น)
+          this.meta.pushed[table][id] = { h: cloudHash, u: local.updated_at || KF_EPOCH, b: this.baseOf(this.toRow(table, this.fromRow(table, row))) };
+          this.noStamp.add(table + ':' + id);
+        } else {
+          this.setPushed(table, local);
+        }
+        return 1;
+      },
+      async pullSettings() {
+        const { data, error } = await SupabaseSync.client.from('app_settings').select('*');
+        if (error) throw error;
+        let changed = 0;
+        (data || []).forEach(row => {
+          if (!KF_SETTINGS.includes(row.id) || row.deleted_at) return;
+          const localH = kfHash(JSON.stringify(this.settingData(row.id)));
+          const cloudH = kfHash(JSON.stringify(row.data || {}));
+          const m = this.meta.settings[row.id];
+          if (localH === cloudH) { this.meta.settings[row.id] = { h: localH, u: row.updated_at }; return; }
+          const dirty = m && m.h !== localH;
+          if (dirty && Date.parse(m.u || 0) >= Date.parse(row.updated_at || 0)) return;
+          this.applySettingData(row.id, row.data);
+          this.meta.settings[row.id] = { h: kfHash(JSON.stringify(this.settingData(row.id))), u: row.updated_at };
+          changed++;
+        });
+        return changed;
+      },
+
+      // ---------- slips -> Storage ----------
+      async uploadDataUrl(du) {
+        try {
+          const parts = du.split(',');
+          const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+          const ext = mime === 'application/pdf' ? 'pdf' : (mime.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+          const bin = atob(parts[1]);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const path = `slips/${kfHash(du).toString(36)}_${du.length.toString(36)}.${ext}`;
+          const res = await SupabaseSync.client.storage.from('proofs').upload(path, new Blob([bytes], { type: mime }), { contentType: mime, upsert: true });
+          if (res.error) { console.warn('slip upload', res.error.message); return null; }
+          const pub = SupabaseSync.client.storage.from('proofs').getPublicUrl(path);
+          return (pub && pub.data && pub.data.publicUrl) || null;
+        } catch (e) {
+          console.warn('slip upload error', e);
+          return null;
+        }
+      },
+      async uploadPendingSlips() {
+        const cache = new Map();
+        let n = 0, failed = 0;
+        for (const t of ['payments', 'invoices']) {
+          for (const rec of this.list(t)) {
+            const s = rec && rec.slip_data;
+            const du = s && s.proof_data_url;
+            if (typeof du !== 'string' || !du.startsWith('data:')) continue;
+            let url = cache.get(du);
+            if (url === undefined) { url = await this.uploadDataUrl(du); cache.set(du, url); }
+            if (url) {
+              s.proof_data_url = url;
+              this.noStamp.add(t + ':' + rec.id);
+              n++;
+            } else {
+              failed++;
+            }
+          }
+        }
+        if (n) console.log(`KfSync: moved ${n} slip images to Storage`);
+        if (failed) this.toastError(`⚠️ อัปโหลดรูปสลิปไม่สำเร็จ ${failed} รูป (รูปยังอยู่ในเครื่องนี้) — ตรวจสอบ Storage bucket "proofs" ใน Supabase`);
+        return n;
+      },
+
+      // ---------- push ----------
+      async rpcUpsert(table, rows) {
+        const { data, error } = await SupabaseSync.client.rpc('kf_upsert', { p_table: table, p_rows: rows, p_key: KF_TABLES[table] ? KF_TABLES[table].key : null });
+        if (error) throw error;
+        return data || { applied: [], stale: [], collided: [], errors: [] };
+      },
+      async pushAll() {
+        const nowIso = new Date().toISOString();
+        const out = { applied: 0, errors: [], refetched: 0 };
+
+        // 1) deletions
+        const tombs = this.tombstones();
+        if (tombs.length) {
+          const byTable = {};
+          tombs.forEach(tb => { (byTable[tb.table] = byTable[tb.table] || []).push(tb.id); });
+          for (const t of Object.keys(byTable)) {
+            const { error } = await SupabaseSync.client.rpc('kf_soft_delete', { p_table: t, p_ids: byTable[t] });
+            if (error) throw error;
+            byTable[t].forEach(id => { if (this.meta.pushed[t]) delete this.meta.pushed[t][id]; });
+            App.state.deleted_records = this.tombstones().filter(tb => tb.table !== t);
+            out.applied += byTable[t].length;
+          }
+        }
+
+        // 2) records
+        for (const t of Object.keys(KF_TABLES)) {
+          const pending = [];
+          for (const rec of this.list(t)) {
+            if (!rec || !rec.id) continue;
+            let row = this.toRow(t, rec);
+            const h = this.contentHash(row);
+            const m = this.meta.pushed[t][rec.id];
+            if (m && m.h === h) continue;
+            const stampKey = t + ':' + rec.id;
+            if (m && (!rec.updated_at || rec.updated_at === m.u) && !this.noStamp.has(stampKey)) {
+              rec.updated_at = nowIso; // แก้ไขแล้วแต่โค้ดไม่ได้อัปเดตเวลา -> ประทับเวลาตอนนี้
+              row.updated_at = nowIso;
+            }
+            pending.push({ rec, row, h });
+          }
+          for (let i = 0; i < pending.length; i += 100) {
+            const chunk = pending.slice(i, i + 100);
+            const res = await this.rpcUpsert(t, chunk.map(p => p.row));
+            const applied = new Set(res.applied || []);
+            chunk.forEach(p => {
+              if (applied.has(p.rec.id)) {
+                this.meta.pushed[t][p.rec.id] = { h: p.h, u: p.rec.updated_at || KF_EPOCH, b: this.baseOf(p.row) };
+                this.noStamp.delete(t + ':' + p.rec.id);
+              }
+            });
+            out.applied += applied.size;
+            if ((res.stale || []).length) out.refetched += await this.refetchIds(t, res.stale);
+            for (const id of (res.collided || [])) await this.handleCollision(t, id, chunk);
+            for (const e of (res.errors || [])) {
+              const fixed = await this.handleRowError(t, e, chunk);
+              if (!fixed) out.errors.push({ table: t, id: e.id, error: e.error });
+            }
+            await this.saveMeta();
+          }
+        }
+
+        // 3) settings
+        const rows = [];
+        KF_SETTINGS.forEach(id => {
+          const d = this.settingData(id);
+          const h = kfHash(JSON.stringify(d));
+          const m = this.meta.settings[id];
+          if (m && m.h === h) return;
+          rows.push({ id, data: d, updated_at: nowIso, _h: h });
+        });
+        if (rows.length) {
+          const res = await this.rpcUpsert('app_settings', rows.map(r => ({ id: r.id, data: r.data, updated_at: r.updated_at })));
+          (res.applied || []).forEach(id => { const r = rows.find(x => x.id === id); this.meta.settings[id] = { h: r._h, u: r.updated_at }; });
+          out.applied += (res.applied || []).length;
+        }
+        return out;
+      },
+      async refetchIds(table, ids) {
+        let changed = 0;
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data, error } = await SupabaseSync.client.from(table).select('*').in('id', ids.slice(i, i + 100));
+          if (error) throw error;
+          (data || []).forEach(row => {
+            // Cloud มีฉบับใหม่กว่า -> รวมทีละช่อง (หรือใช้ของ Cloud ถ้าเครื่องนี้ไม่ได้แก้)
+            changed += this.applyCloudRow(table, row);
+          });
+        }
+        return changed;
+      },
+      async handleCollision(table, id, chunk) {
+        const p = chunk.find(x => x.rec.id === id);
+        if (!p) return;
+        const rec = p.rec;
+        const oldId = rec.id;
+        let newId;
+        if (table === 'invoices') {
+          newId = kfInvoiceId(rec.iv_number);
+          if (newId === oldId) newId = kfId('INV');
+          // ย้ายการตัดยอดของบิลนี้ให้ตาม id ใหม่
+          const payIdsForThisBill = new Set(this.list('payments')
+            .filter(py => (py.matched_invoices || []).includes(rec.iv_number)).map(py => py.id));
+          this.list('payment_allocations').forEach(a => {
+            if (a.invoice_id === oldId && payIdsForThisBill.has(a.payment_id)) a.invoice_id = newId;
+          });
+        } else if (table === 'payment_allocations') {
+          newId = kfId('ALC');
+        } else if (table === 'audit_logs') {
+          newId = kfId('LOG');
+        } else {
+          return;
+        }
+        rec.id = newId;
+        delete this.meta.pushed[table][oldId];
+        this.rerun = true;
+        console.warn(`KfSync: id collision on ${table} ${oldId} -> ${newId}`);
+        await this.refetchIds(table, [oldId]); // ดึงรายการของเครื่องอื่นที่ใช้ id เดิมลงมาด้วย
+      },
+      async handleRowError(table, e, chunk) {
+        const msg = String(e.error || '');
+        if (table === 'invoices' && /iv_number/.test(msg)) {
+          const p = chunk.find(x => x.rec.id === e.id);
+          if (!p) return false;
+          const { data } = await SupabaseSync.client.from('invoices').select('id').eq('iv_number', p.rec.iv_number).maybeSingle();
+          if (data && data.id && !this.list('invoices').some(i => i.id === data.id)) {
+            const oldId = p.rec.id;
+            p.rec.id = data.id;
+            this.list('payment_allocations').forEach(a => { if (a.invoice_id === oldId) a.invoice_id = data.id; });
+            delete this.meta.pushed.invoices[oldId];
+            this.rerun = true;
+            return true;
+          }
+        }
+        return false;
+      }
+    };
+
+    // ---- wire Sync V2 into the existing SupabaseSync API (old call sites keep working) ----
+    Object.assign(SupabaseSync, {
+      async testAndConnect(showToast = true) {
+        if (!this.client) { this.updateStatusBadge('offline'); return; }
+        this.updateStatusBadge('syncing', 'กำลังตรวจสอบการเชื่อมต่อ...');
+        try {
+          if (DataManager.hydrationPromise) { try { await DataManager.hydrationPromise; } catch (_) {} }
+          if (!KfSync.meta) await KfSync.loadMeta();
+          const { error } = await this.client.from('invoices').select('id, server_updated_at').limit(1);
+          if (error) {
+            const msg = error.message || '';
+            if (/server_updated_at|does not exist|PGRST20|42703|42P01|schema cache/i.test(msg + (error.code || ''))) {
+              this.isConnected = false;
+              this.hasMissingTables = true;
+              KfSync.v2Ready = false;
+              this.updateStatusBadge('missing_tables', '⚠️ ต้องอัปเดตฐานข้อมูล Cloud (Sync v2) — คลิก');
+              if (showToast) App.showToast('⚠️ ต้องรัน SQL "Sync v2" ใน Supabase ก่อน ข้อมูลยังเก็บในเครื่องครบ', 'warning');
+              return;
+            }
+            if (/JWT|API key|401|PGRST301/i.test(msg + (error.code || ''))) {
+              this.isConnected = false;
+              this.updateStatusBadge('error', 'Supabase Key ไม่ถูกต้อง');
+              if (showToast) App.showToast('❌ Supabase Key ไม่ถูกต้อง กรุณาตรวจสอบในการตั้งค่า', 'error');
+              return;
+            }
+            throw error;
+          }
+          this.isConnected = true;
+          this.hasMissingTables = false;
+          KfSync.v2Ready = true;
+          this.updateStatusBadge('connected', 'เชื่อมต่อ Cloud แล้ว');
+          this.subscribeRealtime();
+          KfSync.startTimers();
+          await KfSync.syncNow({ pull: true, push: true, manual: !!showToast });
+        } catch (e) {
+          console.error('Supabase connection failed:', e);
+          this.isConnected = false;
+          this.updateStatusBadge('error', 'เชื่อมต่อ Cloud ไม่ได้ (ข้อมูลอยู่ในเครื่อง)');
+          if (showToast) App.showToast('❌ ไม่สามารถเชื่อมต่อ Supabase ได้: ' + (e.message || e), 'error');
+          KfSync.startTimers();
+        }
+      },
+      async pullFreshData(showToast = false) {
+        return KfSync.syncNow({ pull: true, push: false, manual: !!showToast });
+      },
+      async pushAllDataSecure(silent = false) {
+        if (this.hasMissingTables) { this.showSqlSchemaModal(); return; }
+        return KfSync.syncNow({ push: true, pull: !silent, manual: !silent });
+      },
+      debouncedPush(state, immediate = false) {
+        KfSync.refreshPendingUI();
+        KfSync.schedulePush(immediate ? 300 : 1200);
+      },
+      flushPendingPush() {
+        KfSync.syncNow({ push: true });
+      },
+      debouncedPull() {
+        KfSync.schedulePull(1500);
+      },
+      subscribeRealtime() {
+        if (!this.client || !this.isConnected) return;
+        if (this.realtimeChannel) { try { this.client.removeChannel(this.realtimeChannel); } catch (_) {} }
+        try {
+          let ch = this.client.channel('kf-sync-v2');
+          ['invoices', 'payments', 'payment_allocations', 'customers', 'app_settings'].forEach(t => {
+            ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => KfSync.schedulePull(1500));
+          });
+          this.realtimeChannel = ch.subscribe((status) => {
+            console.log('Realtime v2:', status);
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') KfSync.schedulePull(5000);
+          });
+        } catch (e) {
+          console.warn('Realtime subscription error:', e);
+        }
+      }
+    });
 
     // 2. LIGHTBOX & MULTI-PAGE HIGHLIGHT DOCUMENT VIEWER CONTROLLER
     const LightboxModal = {
@@ -8471,6 +9619,7 @@ END $$;
       },
 
       init() {
+        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (_) {}
         this.state = DataManager.load();
         FontSize.init();
         this.applySavedTheme();
@@ -9841,7 +10990,7 @@ END $$;
             }
             const finalProofUrl = uploadedPageUrls[pageNum] || pageDataUrl;
 
-            const payId = 'PAY-' + Math.floor(1000 + Math.random() * 9000);
+            const payId = kfId('PAY');
             const isBundledTx = (tx.allocated_bills || []).length > 1;
 
             (tx.allocated_bills || []).forEach(b => {
@@ -9884,7 +11033,7 @@ END $$;
               };
 
               App.state.payment_allocations.push({
-                id: 'ALC-' + Math.floor(1000 + Math.random() * 9000),
+                id: kfId('ALC'),
                 payment_id: payId,
                 invoice_id: inv.id,
                 allocated_amount: payAmt
@@ -9914,7 +11063,7 @@ END $$;
 
             App.state.payments.unshift({
               id: payId,
-              payment_number: 'RC-' + App.getLocalDateStr().replace(/-/g, '') + '-' + String(App.state.payments.length + 1).padStart(3, '0'),
+              payment_number: kfReceiptNo(),
               customer_id: primaryCust.id,
               payment_date: (tx.datetime || App.getLocalDateTimeStr()).split(' ')[0],
               payment_type: 'TRANSFER',
@@ -9955,7 +11104,7 @@ END $$;
             });
 
             App.state.audit_logs.unshift({
-              id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+              id: kfId('LOG'),
               timestamp: App.getLocalDateTimeStr(),
               user: App.state.currentUserRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : 'พนักงานฝ่ายขาย',
               action: 'STATEMENT_BATCH_MATCH',
@@ -11291,7 +12440,7 @@ END $$;
         if (!customer) {
           const nextCodeNum = App.state.customers.length + 1;
           customer = {
-            id: 'CUST-' + String(nextCodeNum).padStart(3, '0'),
+            id: kfCustomerId(custName),
             code: 'AR-' + String(nextCodeNum).padStart(3, '0'),
             name: custName,
             phone: data.customer_phone || '-',
@@ -11308,7 +12457,7 @@ END $$;
         }
 
         const newInv = {
-          id: 'INV-' + String(App.state.invoices.length + 1).padStart(3, '0'),
+          id: kfInvoiceId(ivNumber),
           iv_number: ivNumber,
           customer_id: customer.id,
           invoice_date: date,
@@ -11330,7 +12479,7 @@ END $$;
         App.state.invoices.unshift(newInv);
 
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: App.state.currentUserRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : 'พนักงานฝ่ายขาย',
           action: 'OCR_IMPORT_INVOICE',
@@ -11880,8 +13029,8 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           if (!Array.isArray(App.state.audit_logs)) App.state.audit_logs = [];
 
           const timestamp = Date.now();
-          const payId = 'PAY-' + timestamp + '-' + Math.floor(100 + Math.random() * 900);
-          const payNumber = 'RC-' + App.getLocalDateStr().replace(/-/g, '').slice(2) + '-' + String(App.state.payments.length + 1).padStart(4, '0');
+          const payId = kfId('PAY');
+          const payNumber = kfReceiptNo();
 
           let remainingToMatch = amount;
           const selectedCheckboxes = Array.from(document.querySelectorAll('input[name="matchInv"]:checked'));
@@ -11944,7 +13093,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
             matchedIvNumbers.push(inv.iv_number);
 
             App.state.payment_allocations.push({
-              id: 'ALC-' + Math.floor(1000 + Math.random() * 9000),
+              id: kfId('ALC'),
               payment_id: payId,
               invoice_id: inv.id,
               allocated_amount: matchAmt
@@ -11985,7 +13134,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           const actor = App.state.currentUserRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : (App.state.currentUserRole === 'ADMIN' ? 'ผู้ดูแลระบบ (Admin)' : 'พนักงานฝ่ายขาย');
 
           App.state.audit_logs.unshift({
-            id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+            id: kfId('LOG'),
             timestamp: App.getLocalDateTimeStr(),
             user: actor,
             action: 'RECORD_PAYMENT',
@@ -12000,7 +13149,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           }
           this.close();
           App.refreshAllViews();
-          App.showToast(`✅ บันทึกรับชำระเงิน ${payNumber} สำเร็จ (฿${App.formatCurrency(amount)}) บิลเข้าสู่คิวรอ CEO ตรวจสอบแล้ว`, 'success');
+          App.showToast(`✅ บันทึกรับชำระเงิน ${payNumber} (฿${App.formatCurrency(amount)}) แล้ว — กำลังส่งขึ้น Cloud ให้ CEO`, 'success');
         } catch (err) {
           console.error('Payment save error:', err);
           App.showToast('เกิดข้อผิดพลาดในการบันทึก: ' + (err.message || err), 'error');
@@ -12761,7 +13910,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           if (!customer) {
             const nextCodeNum = (App.state.customers || []).length + 1;
             customer = {
-              id: 'CUST-' + String(nextCodeNum).padStart(3, '0'),
+              id: kfCustomerId(inv.customer_name),
               code: 'AR-' + String(nextCodeNum).padStart(3, '0'),
               name: inv.customer_name,
               phone: inv.customer_phone || '-',
@@ -12778,7 +13927,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           }
 
           App.state.invoices.unshift({
-            id: 'INV-' + String(App.state.invoices.length + 1).padStart(3, '0'),
+            id: kfInvoiceId(inv.iv_number),
             iv_number: inv.iv_number,
             doc_type: inv.doc_type || 'ใบส่งของชั่วคราว',
             customer_id: customer.id,
@@ -12804,7 +13953,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         const totalAmount = selected.reduce((sum, i) => sum + i.total_amount, 0);
 
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: App.state.currentUserRole === 'CEO' ? 'คุณศุภรัตน์ (CEO)' : 'พนักงานฝ่ายขาย',
           action: 'IMPORT_SPF_SDF',
@@ -13181,7 +14330,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         });
 
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: 'คุณศุภรัตน์ (CEO)',
           action: 'CEO_BATCH_APPROVED',
@@ -13216,8 +14365,9 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
           if (searchInput) searchInput.value = '';
           this.render();
 
-          // Background hydrate slips from Cloud payments table to make sure all images appear immediately
-          if (typeof SupabaseSync !== 'undefined' && SupabaseSync.client) {
+          // Sync v2: ดึงเฉพาะส่วนที่เปลี่ยนแทนการโหลดสลิปทั้งตาราง
+          if (typeof KfSync !== 'undefined') KfSync.schedulePull(0);
+          if (false) {
             SupabaseSync.client.from('payments').select('id, payment_number, payment_type, slip_data, matched_invoices').not('slip_data', 'is', null).then(res => {
               if (Array.isArray(res.data) && res.data.length > 0) {
                 let updated = false;
@@ -13322,7 +14472,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         inv.updated_at = new Date().toISOString();
 
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: 'คุณศุภรัตน์ (CEO)',
           action: isTransferred ? 'CEO_TRANSFER_APPROVED' : 'CEO_APPROVED',
@@ -14393,7 +15543,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         inv.updated_at = new Date().toISOString();
 
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: 'คุณศุภรัตน์ (CEO)',
           action: isTransferred ? 'CEO_TRANSFER_APPROVED' : 'CEO_APPROVED',
@@ -15050,7 +16200,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         this.destinations.forEach((dest, idx) => {
           const targetCust = App.state.customers.find(c => c.id === dest.customerId) || { name: 'สินค้ากลับร้าน', code: 'AR-FRONT' };
           const childIvNumber = `${inv.iv_number}-R${idx + 1}`;
-          const childId = 'INV-T-' + Date.now().toString().slice(-4) + '-' + (idx + 1);
+          const childId = kfInvoiceId(childIvNumber);
 
           const childInv = {
             id: childId,
@@ -15107,7 +16257,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         // Audit Log
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: nowStr,
           user: actor,
           action: 'TRANSFER_INVOICE_STOREFRONT',
@@ -15214,7 +16364,7 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
 
         // Audit Log
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: 'ผู้ดูแลระบบ (Admin)',
           action: 'EDIT_INVOICE',
@@ -15367,13 +16517,17 @@ Extract the exact text visible on this bank slip or cheque into valid JSON only 
         if (idx !== -1) {
           App.state.invoices.splice(idx, 1);
         }
+        if (!Array.isArray(App.state.deleted_records)) App.state.deleted_records = [];
+        App.state.deleted_records.push({ table: 'invoices', id: invoiceId, at: new Date().toISOString() });
 
         // Clean up linked allocations
+        (App.state.payment_allocations || []).filter(a => a.invoice_id === invoiceId)
+          .forEach(a => App.state.deleted_records.push({ table: 'payment_allocations', id: a.id, at: new Date().toISOString() }));
         App.state.payment_allocations = (App.state.payment_allocations || []).filter(a => a.invoice_id !== invoiceId);
 
         // Audit log
         App.state.audit_logs.unshift({
-          id: 'LOG-' + Math.floor(1000 + Math.random() * 9000),
+          id: kfId('LOG'),
           timestamp: App.getLocalDateTimeStr(),
           user: 'ผู้ดูแลระบบ (Admin)',
           action: 'DELETE_INVOICE',
